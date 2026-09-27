@@ -15,8 +15,10 @@ fi
 cd "${INSTALL_DIR}"
 
 echo "=== [1/4] Mengambil Pembaruan Terbaru dari GitHub ==="
-git fetch origin
-git pull origin main || git pull origin master
+git fetch origin main
+# Menyelaraskan kode bersih tanpa terhalang perubahan izin chmod
+git reset --hard origin/main
+chmod +x install_proxmox_lxc.sh update_proxmox_lxc.sh
 
 echo "=== [2/4] Memperbarui Dependensi Python (jika ada) ==="
 venv/bin/pip install -r requirements.txt
