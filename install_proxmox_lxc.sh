@@ -8,7 +8,7 @@ set -e
 
 echo "=== [1/6] Memperbarui Repositori Sistem & Paket Dependensi ==="
 apt-get update
-apt-get install -y python3 python3-pip python3-venv git curl ffmpeg libgl1 libglib2.0-0
+apt-get install -y python3 python3-pip python3-venv git curl ffmpeg libgl1 libglib2.0-0 iproute2
 
 INSTALL_DIR="/opt/cctv-monitoring"
 
@@ -32,7 +32,10 @@ venv/bin/pip install -r requirements.txt
 echo "=== [5/6] Memastikan Struktur Direktori Siap ==="
 mkdir -p static/recordings static/snapshots static/events static/faces config models
 
-echo "=== [6/6] Memasang & Mengaktifkan Systemd Service ==="
+echo "=== [6/6] Memasang Routing Multi-Subnet & Mengaktifkan Systemd Service ==="
+# Menambahkan static route ke subnet Mikrotik 192.168.50.0/24 jika tersedia
+ip route add 192.168.50.0/24 via 192.168.1.64 2>/dev/null || true
+
 cp systemd/aegis-cctv.service /etc/systemd/system/aegis-cctv.service
 systemctl daemon-reload
 systemctl enable aegis-cctv

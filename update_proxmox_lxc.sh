@@ -21,7 +21,8 @@ git pull origin main || git pull origin master
 echo "=== [2/4] Memperbarui Dependensi Python (jika ada) ==="
 venv/bin/pip install -r requirements.txt
 
-echo "=== [3/4] Memperbarui File Service Systemd ==="
+echo "=== [3/4] Memperbarui File Service Systemd & Routing ==="
+ip route add 192.168.50.0/24 via 192.168.1.64 2>/dev/null || true
 cp systemd/aegis-cctv.service /etc/systemd/system/aegis-cctv.service
 systemctl daemon-reload
 
