@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS VISION • ONVIF CCTV Command Center</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            cyan: '#00f0ff',
+                            emerald: '#10b981',
+                            crimson: '#ff0055',
+                            amber: '#f59e0b',
+                            dark: '#060911'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css?v=4.2">
+</head>
+<body class="cyber-bg min-h-screen flex flex-col text-slate-100 select-none">
+
+    <!-- Top Command Navigation Bar -->
+    <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-xl border-b border-cyan-500/20 px-4 py-2.5">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Branding -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+                    <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-tech font-bold text-lg tracking-wider text-white">AEGIS<span class="text-cyan-400">VISION</span></h1>
+                        <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">v2.5 PRO</span>
+                    </div>
+                    <p class="font-mono text-[11px] text-slate-400">ONVIF AI CCTV Command Center</p>
+                </div>
+            </div>
+
+            <!-- Central Telemetry & Live Clock -->
+            <div class="hidden md:flex items-center gap-4 py-1 px-3.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="flex items-center gap-2">
+                    <span id="badge-online-count" class="font-mono text-xs px-2.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        3/4 ONLINE
+                    </span>
+                    <span id="badge-motion-status" class="font-mono text-xs px-2.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> AI MOTION READY
+                    </span>
+                    <span id="badge-storage" class="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700 flex items-center gap-1">
+                        <i data-lucide="hard-drive" class="w-3 h-3"></i> <span id="storage-status-text">--%</span>
+                    </span>
+                </div>
+                <div class="h-4 w-px bg-slate-800"></div>
+                <div class="text-right font-mono">
+                    <div id="header-clock" class="text-sm font-bold text-cyan-300">00:00:00</div>
+                    <div id="header-date" class="text-[10px] text-slate-500">2026-09-27</div>
+                </div>
+            </div>
+
+            <!-- Controls: Layout Switcher & Action Buttons -->
+            <div id="mobile-toolbar-scroll" class="flex items-center gap-2 flex-wrap">
+                <!-- Layout Buttons -->
+                <div class="flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-800">
+                    <button onclick="setLayout('grid-1x1')" id="btn-grid-1x1" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="1 Kamera (Single View)">
+                        <i data-lucide="square" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="setLayout('grid-2x2')" id="btn-grid-2x2" class="layout-btn p-1.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" title="2x2 Grid (Quad View / 4 Layar)">
+                        <i data-lucide="grid-2x2" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="setLayout('grid-3x2')" id="btn-grid-3x2" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="6 Kamera (3x2 Grid / 6 Layar)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                            <rect width="5" height="7" x="3" y="3.5" rx="1"/>
+                            <rect width="5" height="7" x="9.5" y="3.5" rx="1"/>
+                            <rect width="5" height="7" x="16" y="3.5" rx="1"/>
+                            <rect width="5" height="7" x="3" y="13.5" rx="1"/>
+                            <rect width="5" height="7" x="9.5" y="13.5" rx="1"/>
+                            <rect width="5" height="7" x="16" y="13.5" rx="1"/>
+                        </svg>
+                    </button>
+                    <button onclick="setLayout('grid-3x3')" id="btn-grid-3x3" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="3x3 Grid (9 Layar)">
+                        <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="setLayout('grid-focus')" id="btn-grid-focus" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="Focus View (1 Utama + Samping)">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Action: Auto-Patrol Carousel -->
+                <button onclick="togglePatrolMode()" id="btn-patrol" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Mulai / Hentikan Auto Patrol (Rotasi Layar Otomatis)">
+                    <i data-lucide="repeat" class="w-4 h-4"></i>
+                    <span id="patrol-btn-text" class="hidden sm:inline">Patrol</span>
+                </button>
+
+                <!-- Action: Playback Serentak Multi-Kamera (Feature D) -->
+                <button onclick="toggleMasterSyncPlayback()" id="btn-sync-playback" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Buka Kontrol Playback Serentak Semua Kamera (Sinkronisasi Waktu)">
+                    <i data-lucide="split" class="w-4 h-4 text-cyan-400"></i>
+                    <span class="hidden sm:inline">Sync Playback</span>
+                </button>
+
+                <!-- Action: Interactive E-Map -->
+                <button onclick="openEmapModal()" id="btn-emap" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Buka Denah Interaktif CCTV (E-Map)">
+                    <i data-lucide="map" class="w-4 h-4 text-cyan-400"></i>
+                    <span class="hidden sm:inline">E-Map</span>
+                </button>
+
+                <!-- Action: Scan ONVIF -->
+                <button onclick="openScanModal()" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="radar" class="w-4 h-4 animate-spin-slow"></i>
+                    <span>Scan ONVIF</span>
+                </button>
+
+                <!-- Action: DHCP Auto-Heal -->
+                <button onclick="triggerDHCPAutoHeal()" id="btn-auto-heal" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition" title="Lacak & Sinkronkan IP Kamera jika berubah oleh DHCP">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Auto-Heal DHCP</span>
+                </button>
+
+                <!-- Action: Galeri -->
+                <button onclick="openGalleryModal()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="folder-video" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Galeri</span>
+                </button>
+
+                <!-- Action: Tambah Kamera -->
+                <button onclick="openAddCameraModal()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Tambah</span>
+                </button>
+
+                <!-- Action: Database Wajah Dikenal (Feature 1) -->
+                <button onclick="openFacesModal()" id="btn-faces" class="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition" title="Kelola Database Wajah Dikenal (Keluarga, Staf, Tamu VIP)">
+                    <i data-lucide="user-check" class="w-4 h-4 text-cyan-400"></i>
+                    <span class="hidden md:inline">Wajah</span>
+                </button>
+
+                <!-- Action: Jadwal Keamanan / Arming Mode (Feature 3) -->
+                <button onclick="toggleArmingMode()" id="btn-arming" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition" title="Jadwal Keamanan: Klik untuk ubah mode (Auto / Selalu Aktif / Standby Siang)">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400" id="arming-icon"></i>
+                    <span id="arming-btn-text" class="hidden sm:inline font-mono">ARMED</span>
+                </button>
+
+                <!-- Action: Settings -->
+                <button onclick="openSettingsModalGuarded()" id="btn-settings" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Pengaturan Sistem, Jadwal, & Telegram Bot">
+                    <i data-lucide="settings" class="w-4 h-4 text-amber-400"></i>
+                    <span class="hidden sm:inline">Settings</span>
+                </button>
+
+                <!-- Audio Alert Mute Toggle -->
+                <button onclick="toggleSound()" id="btn-sound-toggle" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-700" title="Toggle Suara Alarm Gerakan">
+                    <i data-lucide="volume-2" class="w-4 h-4"></i>
+                </button>
+
+                <!-- AI Face Auto-Zoom Toggle Button -->
+                <button onclick="toggleFaceAutoZoom()" id="btn-face-zoom-toggle" class="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30 transition shadow-lg shadow-cyan-500/10" title="AI Face Auto-Zoom (Otomatis Zoom Wajah saat terdeteksi)">
+                    <i data-lucide="scan-face" class="w-4 h-4"></i>
+                </button>
+
+                <!-- PWA Install Button (Feature 5) -->
+                <button onclick="installPWA()" id="btn-pwa-install" class="hidden p-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 transition shadow-lg shadow-cyan-500/10" title="Pasang Aplikasi Aegis CCTV ke Desktop Windows / HP">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                </button>
+
+                <!-- Fullscreen Matrix -->
+                <button onclick="toggleFullscreen()" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" title="Layar Penuh Matrix">
+                    <i data-lucide="expand" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- Mobile-Only Compact Telemetry Strip (visible only on small screens) -->
+    <div class="md:hidden bg-slate-950/95 border-b border-slate-800/60 px-3 py-1.5 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span id="mobile-badge-online" class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                3/4 ONLINE
+            </span>
+            <span id="mobile-badge-motion" class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> READY
+            </span>
+        </div>
+        <div class="font-mono text-right">
+            <div id="mobile-clock" class="text-xs font-bold text-cyan-300">00:00:00</div>
+        </div>
+    </div>
+
+    <!-- Main Live Surveillance Matrix Viewport -->
+    <main class="flex-1 p-4 max-w-7xl mx-auto w-full">
+        <!-- Master Multi-Camera Synchronized Playback Bar (Feature D) -->
+        <div id="master-sync-bar" class="hidden mb-4 p-3.5 rounded-2xl glass-panel border border-cyan-500/40 shadow-2xl transition-all duration-300">
+            <div class="flex flex-col gap-2.5">
+                <!-- Header row -->
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-cyan-400 animate-ping shrink-0"></span>
+                        <h3 class="font-tech font-bold text-sm tracking-wide text-cyan-300 uppercase flex items-center gap-2">
+                            <i data-lucide="split" class="w-4 h-4 text-cyan-400"></i> Playback Serentak Multi-Kamera (Synchronized DVR)
+                        </h3>
+                        <span id="master-sync-badge" class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">SINKRON</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="masterReturnToLive()" class="px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/50 font-mono text-xs font-bold flex items-center gap-1.5 transition" title="Kembalikan semua kamera ke siaran langsung">
+                            <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> KEMBALI KE LIVE SEMUA
+                        </button>
+                        <button onclick="toggleMasterSyncPlayback()" class="p-1 text-slate-400 hover:text-white rounded" title="Tutup Bar Playback Serentak">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Master Scrubber Bar (YouTube Red & Cyan Theme) -->
+                <div class="relative w-full py-2 cursor-pointer group/ms" id="master-scrub-track"
+                     onmousedown="startMasterScrubbing(event)"
+                     ontouchstart="startMasterScrubbing(event)"
+                     onmousemove="handleMasterScrubHover(event)"
+                     onmouseleave="hideMasterTooltip()">
+                    <div id="master-scrub-tooltip" class="absolute -top-7 -translate-x-1/2 px-2 py-0.5 bg-slate-900 border border-cyan-400 text-cyan-300 rounded text-[10px] font-mono shadow pointer-events-none hidden z-20">
+                        LIVE
+                    </div>
+                    <div class="w-full h-2.5 group-hover/ms:h-3.5 bg-slate-800 rounded-full overflow-hidden transition-all duration-150 relative">
+                        <div id="master-buffer-bar" class="absolute top-0 bottom-0 left-0 bg-slate-600/60 rounded-full" style="width: 100%;"></div>
+                        <div id="master-played-bar" class="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-red-600 via-amber-500 to-cyan-400 rounded-full transition-all" style="width: 100%;"></div>
+                    </div>
+                    <div id="master-thumb" class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 group-hover/ms:w-5 group-hover/ms:h-5 bg-cyan-400 border-2 border-white rounded-full shadow-lg shadow-cyan-400/80 pointer-events-none transition-transform" style="left: 100%;"></div>
+                </div>
+
+                <!-- Bottom Controls: Rewind, Forward, Play/Pause, Status Label -->
+                <div class="flex items-center justify-between text-xs text-slate-300 flex-wrap gap-2 pt-0.5">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <button onclick="masterQuickRewind(30)" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-mono text-xs flex items-center gap-1 transition" title="Mundur 30 Detik Serentak">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> -30s
+                        </button>
+                        <button onclick="masterQuickRewind(10)" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-mono text-xs flex items-center gap-1 transition" title="Mundur 10 Detik Serentak">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> -10s
+                        </button>
+                        <button onclick="toggleMasterPause()" id="btn-master-play-pause" class="px-3 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-mono text-xs font-bold flex items-center gap-1.5 transition">
+                            <i data-lucide="pause" class="w-3.5 h-3.5"></i> JEDA SEMUA
+                        </button>
+                        <button onclick="masterQuickRewind(-10)" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-mono text-xs flex items-center gap-1 transition" title="Maju 10 Detik Serentak">
+                            +10s <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button onclick="masterQuickRewind(-30)" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-mono text-xs flex items-center gap-1 transition" title="Maju 30 Detik Serentak">
+                            +30s <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 font-mono text-xs">
+                        <span class="text-slate-400">Sinkronisasi:</span>
+                        <span id="master-time-label" class="text-cyan-300 font-bold truncate max-w-[200px] sm:max-w-none">Siaran Langsung (LIVE 4 Kamera)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Video Grid Container (populated dynamically) -->
+        <div id="camera-grid" class="grid gap-4">
+            <!-- Dynamic Camera Cards -->
+        </div>
+    </main>
+
+    <!-- Status Bar Footer -->
+    <footer class="bg-slate-950/90 border-t border-slate-800/80 px-4 py-2 text-xs text-slate-500 font-mono">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1.5 text-cyan-400">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400"></span> Backend RTSP Proxy Active
+                </span>
+                <span>Subnet: 192.168.1.0/24</span>
+                <span>ONVIF WS-Discovery: Multicast 239.255.255.250:3702</span>
+            </div>
+            <div>
+                <span>Aegis Vision Surveillance Station • Professional Security Suite</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ================== MODALS ================== -->
+
+    <!-- 1. PTZ CONTROLLER MODAL / DRAWER -->
+    <div id="ptz-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-sm p-5 border border-cyan-500/30 shadow-2xl relative">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="move" class="w-5 h-5 text-cyan-400"></i>
+                    <h3 id="ptz-cam-title" class="font-tech font-bold text-base text-slate-100">Kontrol PTZ Kamera</h3>
+                </div>
+                <button onclick="closePTZModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- PTZ Directional Pad -->
+            <div class="grid grid-cols-3 gap-2 w-48 h-48 mx-auto mb-4 p-2 bg-slate-900/80 rounded-2xl border border-slate-800 shadow-inner">
+                <button onclick="sendPTZNudge('up-left')" class="ptz-btn rounded-xl flex items-center justify-center">
+                    <i data-lucide="arrow-up-left" class="w-5 h-5"></i>
+                </button>
+                <button onclick="sendPTZNudge('up')" class="ptz-btn rounded-xl flex items-center justify-center font-bold">
+                    <i data-lucide="arrow-up" class="w-6 h-6"></i>
+                </button>
+                <button onclick="sendPTZNudge('up-right')" class="ptz-btn rounded-xl flex items-center justify-center">
+                    <i data-lucide="arrow-up-right" class="w-5 h-5"></i>
+                </button>
+                
+                <button onclick="sendPTZNudge('left')" class="ptz-btn rounded-xl flex items-center justify-center font-bold">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <button class="bg-slate-800/80 rounded-xl flex items-center justify-center text-slate-400 text-xs font-mono">
+                    PTZ
+                </button>
+                <button onclick="sendPTZNudge('right')" class="ptz-btn rounded-xl flex items-center justify-center font-bold">
+                    <i data-lucide="arrow-right" class="w-6 h-6"></i>
+                </button>
+
+                <button onclick="sendPTZNudge('down-left')" class="ptz-btn rounded-xl flex items-center justify-center">
+                    <i data-lucide="arrow-down-left" class="w-5 h-5"></i>
+                </button>
+                <button onclick="sendPTZNudge('down')" class="ptz-btn rounded-xl flex items-center justify-center font-bold">
+                    <i data-lucide="arrow-down" class="w-6 h-6"></i>
+                </button>
+                <button onclick="sendPTZNudge('down-right')" class="ptz-btn rounded-xl flex items-center justify-center">
+                    <i data-lucide="arrow-down-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Zoom & Speed Controls -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-center gap-3">
+                    <button onclick="sendPTZNudge('zoom-out')" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-700 rounded-lg flex items-center gap-1.5 text-xs font-bold transition">
+                        <i data-lucide="zoom-out" class="w-4 h-4"></i> Zoom Out
+                    </button>
+                    <button onclick="sendPTZNudge('zoom-in')" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-700 rounded-lg flex items-center gap-1.5 text-xs font-bold transition">
+                        <i data-lucide="zoom-in" class="w-4 h-4"></i> Zoom In
+                    </button>
+                </div>
+
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-xs">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-slate-400">Kecepatan Putaran (Speed):</span>
+                        <span id="speed-val" class="font-mono text-cyan-400">0.5</span>
+                    </div>
+                    <input type="range" id="ptz-speed-slider" min="0.1" max="1.0" step="0.1" value="0.5" 
+                           oninput="document.getElementById('speed-val').textContent = this.value" 
+                           class="w-full accent-cyan-400 cursor-pointer">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. ONVIF NETWORK SCANNER MODAL -->
+    <div id="scan-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-2xl p-6 border border-cyan-500/30 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="radar" class="w-5 h-5 text-cyan-400"></i>
+                    <div>
+                        <h3 class="font-tech font-bold text-lg text-slate-100">ONVIF WS-Discovery Scanner</h3>
+                        <p class="text-xs text-slate-400">Pemindaian otomatis perangkat CCTV di jaringan lokal</p>
+                    </div>
+                </div>
+                <button onclick="closeScanModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Scan Configuration Bar -->
+            <div class="mb-4 shrink-0 space-y-2">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1">
+                        <label class="text-[11px] font-mono text-slate-400 block mb-1">Prefix Subnet IP:</label>
+                        <input type="text" id="scan-prefix-input" value="192.168.1." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-cyan-300 font-mono outline-none focus:border-cyan-400">
+                    </div>
+                    <div class="pt-5">
+                        <button onclick="runNetworkScan()" id="btn-start-scan" class="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg text-sm flex items-center gap-2 transition">
+                            <i data-lucide="search" class="w-4 h-4"></i> Mulai Scan
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="text-slate-500 text-[11px]">Preset Subnet:</span>
+                    <button onclick="document.getElementById('scan-prefix-input').value='192.168.1.'; runNetworkScan();" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 text-[11px] font-mono border border-slate-700">192.168.1.x (LAN)</button>
+                    <button onclick="document.getElementById('scan-prefix-input').value='192.168.50.'; runNetworkScan();" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[11px] font-mono border border-slate-700">192.168.50.x (Mikrotik)</button>
+                </div>
+            </div>
+
+            <p id="scan-status-text" class="font-mono text-xs text-cyan-400 mb-3 shrink-0">Siap memindai...</p>
+
+            <!-- Results List -->
+            <div id="scan-results-list" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px]">
+                <!-- Results dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. GALLERY & RECORDINGS MODAL -->
+    <div id="gallery-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-4xl p-6 border border-cyan-500/30 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="folder-video" class="w-5 h-5 text-cyan-400"></i>
+                    <div>
+                        <h3 class="font-tech font-bold text-lg text-slate-100">Galeri Snapshot & Rekaman</h3>
+                        <p class="text-xs text-slate-400">Daftar rekaman video, snapshot kamera, dan peringatan gerakan</p>
+                    </div>
+                </div>
+                <button onclick="closeGalleryModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Filter Tabs & Sync Playback Quick Action -->
+            <div class="flex items-center justify-between mb-3 shrink-0 flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                    <button onclick="loadGalleryItems('all')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">Semua</button>
+                    <button onclick="loadGalleryItems('snapshot')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Snapshots</button>
+                    <button onclick="loadGalleryItems('recording')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-amber-400">Rekaman Video</button>
+                    <button onclick="loadGalleryItems('event')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-red-400">Motion Events</button>
+                </div>
+                <button onclick="closeGalleryModal(); if (!isMasterSyncActive) toggleMasterSyncPlayback();" class="px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-400/40 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="split" class="w-3.5 h-3.5 text-cyan-400"></i> Putar Serentak Multi-Kamera
+                </button>
+            </div>
+
+            <!-- 24-Hour Timeline Playback Bar (NVR Style) -->
+            <div class="mb-4 p-3 bg-slate-900/90 rounded-xl border border-slate-800 shrink-0">
+                <div class="flex items-center justify-between text-xs mb-2 font-mono">
+                    <span class="text-cyan-400 font-semibold flex items-center gap-1.5">
+                        <i data-lucide="clock" class="w-3.5 h-3.5"></i> 24-Hour Event Timeline
+                    </span>
+                    <span id="timeline-hover-time" class="text-slate-400 text-[11px]">Klik atau geser kursor pada garis timeline</span>
+                    <div class="flex items-center gap-3 text-[10px]">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-amber-400"></span> Rekaman</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-500"></span> Event/Penyusup</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-cyan-400"></span> Snapshot</span>
+                    </div>
+                </div>
+                <!-- Timeline track -->
+                <div id="timeline-track" class="relative w-full h-7 bg-slate-950 rounded-lg border border-slate-700/80 overflow-hidden cursor-pointer" onclick="handleTimelineClick(event)">
+                    <div id="timeline-markers" class="absolute inset-0"></div>
+                    <div id="timeline-scrubber" class="absolute top-0 bottom-0 w-0.5 bg-cyan-400 shadow-lg shadow-cyan-400 pointer-events-none hidden"></div>
+                </div>
+                <!-- Hour ticks -->
+                <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-1 px-1">
+                    <span>00:00</span>
+                    <span>03:00</span>
+                    <span>06:00</span>
+                    <span>09:00</span>
+                    <span>12:00</span>
+                    <span>15:00</span>
+                    <span>18:00</span>
+                    <span>21:00</span>
+                    <span>24:00</span>
+                </div>
+            </div>
+
+            <!-- Gallery Grid -->
+            <div id="gallery-grid" class="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pr-1">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. ADD / EDIT CAMERA MODAL -->
+    <div id="camera-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-md p-6 border border-cyan-500/30 shadow-2xl relative">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <h3 id="modal-cam-title" class="font-tech font-bold text-lg text-slate-100">Tambah Kamera</h3>
+                <button onclick="closeCameraModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <input type="hidden" id="modal-cam-id">
+
+            <div class="space-y-3.5 text-xs">
+                <div>
+                    <label class="font-mono text-slate-400 block mb-1">Nama Kamera:</label>
+                    <input type="text" id="modal-cam-name" placeholder="Misal: CCTV Pintu Depan" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400">
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="col-span-2">
+                        <label class="font-mono text-slate-400 block mb-1">IP Address:</label>
+                        <input type="text" id="modal-cam-ip" placeholder="192.168.1.65" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-cyan-300 font-mono outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="font-mono text-slate-400 block mb-1">ONVIF Port:</label>
+                        <input type="number" id="modal-cam-onvif-port" value="8899" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-300 font-mono outline-none focus:border-cyan-400">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="font-mono text-slate-400 block mb-1">Custom RTSP URL (Opsional):</label>
+                    <input type="text" id="modal-cam-rtsp-url" placeholder="rtsp://192.168.1.65/live/ch00_1" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-300 font-mono text-[11px] outline-none focus:border-cyan-400">
+                    <p class="text-[10px] text-slate-500 mt-1">Kosongkan jika ingin sistem mendeteksi otomatis jalur RTSP standar.</p>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="modal-cam-ptz" checked class="accent-cyan-400 rounded w-4 h-4">
+                    <label for="modal-cam-ptz" class="text-slate-300 cursor-pointer">Mendukung Kontrol PTZ (Pan-Tilt-Zoom)</label>
+                </div>
+            </div>
+
+            <div class="mt-6 flex items-center justify-end gap-2">
+                <button onclick="closeCameraModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg font-semibold">Batal</button>
+                <button onclick="saveCameraModal()" class="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs rounded-lg font-bold transition">Simpan Kamera</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. INTERACTIVE E-MAP MODAL -->
+    <div id="emap-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-4xl p-6 border border-cyan-500/30 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="map" class="w-5 h-5 text-cyan-400"></i>
+                    <div>
+                        <h3 class="font-tech font-bold text-lg text-slate-100">Interactive E-Map • Denah Lokasi CCTV</h3>
+                        <p class="text-xs text-slate-400">Visualisasi posisi kamera & status alarm penyusup real-time</p>
+                    </div>
+                </div>
+                <button onclick="closeEmapModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- E-Map Canvas Area -->
+            <div class="relative w-full h-[450px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center" id="emap-container">
+                <img src="/static/images/default_floorplan.svg" alt="Floorplan Blueprint" class="w-full h-full object-contain pointer-events-none select-none">
+                <!-- Camera Pin Markers injected here dynamically -->
+                <div id="emap-markers" class="absolute inset-0 pointer-events-auto"></div>
+                <!-- Mini PIP Camera Preview on pin click -->
+                <div id="emap-pip-preview" class="absolute hidden bottom-4 left-4 z-20 w-64 bg-slate-900/95 border border-cyan-500/40 rounded-xl p-2.5 shadow-2xl backdrop-blur-md">
+                    <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
+                        <span id="emap-pip-title" class="text-xs font-bold text-cyan-300">CAM PREVIEW</span>
+                        <button onclick="hideEmapPip()" class="text-slate-400 hover:text-white text-xs p-0.5">✕</button>
+                    </div>
+                    <img id="emap-pip-img" src="" class="w-full h-36 object-cover rounded bg-black">
+                </div>
+            </div>
+            
+            <div class="mt-3 flex items-center justify-between text-xs text-slate-400 font-mono">
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Normal (Online)</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span> Deteksi Gerakan / Intruder</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span> Terputus (Offline)</span>
+                </div>
+                <span>Klik pin kamera untuk melihat live preview</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. SETTINGS & SYSTEM CONFIGURATION MODAL -->
+    <div id="settings-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-2xl p-6 border border-cyan-500/30 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5 text-amber-400"></i>
+                    <div>
+                        <h3 class="font-tech font-bold text-lg text-slate-100">Pengaturan Sistem & Keamanan</h3>
+                        <p class="text-xs text-slate-400">Konfigurasi Telegram Bot, AI Vision, Retensi Penyimpanan, dan PIN</p>
+                    </div>
+                </div>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Scrollable Settings Body -->
+            <div class="flex-1 overflow-y-auto space-y-5 pr-1 text-xs">
+                
+                <!-- 1. Telegram Bot Integration -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                            <i data-lucide="send" class="w-4 h-4"></i> Notifikasi Telegram Bot Instan
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="cfg-telegram-enabled" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-slate-400 text-[11px]">Kirimkan foto snapshot otomatis ke Telegram Anda ketika terdeteksi orang atau pelanggaran batas tripwire.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Bot Token (dari @BotFather):</label>
+                            <input type="text" id="cfg-telegram-token" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono text-[11px]">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Chat ID Penerima:</label>
+                            <input type="text" id="cfg-telegram-chatid" placeholder="Misal: 987654321 atau @nama_channel" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono text-[11px]">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <label class="text-slate-400">Mode Alert:</label>
+                            <select id="cfg-telegram-mode" class="px-2 py-1 bg-slate-950 border border-slate-700 rounded text-cyan-300 outline-none">
+                                <option value="person">Hanya Orang & Tripwire (Rekomendasi)</option>
+                                <option value="all">Semua Gerakan (Sensitif)</option>
+                            </select>
+                        </div>
+                        <button onclick="testTelegramBot()" id="btn-test-telegram" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded-lg font-semibold flex items-center gap-1.5 transition">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Tes Kirim Pesan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. AI Vision & Virtual Tripwire -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <div class="text-emerald-400 font-bold text-sm flex items-center gap-2">
+                        <i data-lucide="cpu" class="w-4 h-4"></i> AI Smart Vision & Virtual Tripwire
+                    </div>
+                    <div class="space-y-2 pt-1">
+                        <label class="flex items-center gap-2.5 cursor-pointer text-slate-300">
+                            <input type="checkbox" id="cfg-ai-enabled" checked class="accent-emerald-400 rounded w-4 h-4">
+                            <span>Klasifikasi Objek Cerdas (Deteksi Manusia / Person & Kendaraan / Vehicle)</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 cursor-pointer text-slate-300">
+                            <input type="checkbox" id="cfg-show-boxes" checked class="accent-cyan-400 rounded w-4 h-4">
+                            <span class="text-cyan-300 font-medium">Tampilkan Reticle Kotak Deteksi di Layar (Corner Brackets Halus [ ])</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 cursor-pointer text-slate-300">
+                            <input type="checkbox" id="cfg-tripwire-enabled" checked class="accent-emerald-400 rounded w-4 h-4">
+                            <span>Virtual Laser Tripwire (Garis Laser Pembatas Perimeter Keamanan)</span>
+                        </label>
+                        
+                        <!-- AI Face Auto-Zoom Master Toggle -->
+                        <label class="flex items-center gap-2.5 cursor-pointer text-slate-300 pt-1">
+                            <input type="checkbox" id="cfg-face-zoom-enabled" checked class="accent-cyan-400 rounded w-4 h-4" onchange="toggleFaceOptionsPanel(this.checked)">
+                            <span class="text-cyan-300 font-semibold flex items-center gap-1.5">
+                                <i data-lucide="scan-face" class="w-4 h-4 text-cyan-400"></i> AI Face Detection & Smart Punch-In Auto-Zoom
+                            </span>
+                        </label>
+
+                        <!-- Dedicated Sub-panel for Custom Face Accuracy & Duration Settings -->
+                        <div id="face-zoom-options" class="p-3 bg-slate-950/80 rounded-xl border border-cyan-500/30 space-y-3 transition-all duration-300">
+                            <!-- Slider Akurasi / Threshold -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="font-mono text-cyan-300 font-medium flex items-center gap-1.5 text-xs">
+                                        <i data-lucide="sliders" class="w-3.5 h-3.5 text-cyan-400"></i> Tingkat Akurasi Deteksi Wajah (Confidence):
+                                    </label>
+                                    <span id="face-thresh-badge" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold text-xs border border-cyan-500/40">50%</span>
+                                </div>
+                                <input type="range" id="cfg-face-threshold" min="30" max="95" step="1" value="50" 
+                                       class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                                       oninput="updateFaceThresholdBadge(this.value)">
+                                <div class="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
+                                    <span class="text-amber-400">30% (Sangat Sensitif / Jarak Jauh)</span>
+                                    <span class="text-cyan-400 font-bold">50% (Standar Ideal)</span>
+                                    <span class="text-emerald-400">95% (Sangat Ketat / Jarak Dekat)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-1">
+                                    Atur tingkat akurasi sesuai kebutuhan Anda. Nilai 40-50% direkomendasikan untuk mendeteksi wajah dengan cepat saat orang berjalan.
+                                </p>
+                            </div>
+
+                            <!-- Durasi Zoom & Cooldown -->
+                            <div class="pt-2 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-mono text-slate-400 mb-1 text-[11px]">Durasi Zoom Fokus (Detik):</label>
+                                    <div class="flex items-center gap-1.5">
+                                        <input type="number" id="cfg-face-duration" min="1.0" max="10.0" step="0.5" value="2.0" 
+                                               class="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono text-xs">
+                                        <span class="text-slate-400 text-xs">detik</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-mono text-slate-400 mb-1 text-[11px]">Jeda Reset / Cooldown (Detik):</label>
+                                    <div class="flex items-center gap-1.5">
+                                        <input type="number" id="cfg-face-cooldown" min="1.0" max="15.0" step="0.5" value="4.0" 
+                                               class="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono text-xs">
+                                        <span class="text-slate-400 text-xs">detik</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 3. Jadwal Keamanan Otomatis (Arming Schedule) -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-emerald-400 font-bold text-sm flex items-center gap-2">
+                            <i data-lucide="shield-alert" class="w-4 h-4"></i> Jadwal Keamanan & Mode Alarm (Arming Schedule)
+                        </div>
+                        <select id="cfg-arming-mode" class="px-2.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-emerald-300 font-mono text-xs outline-none">
+                            <option value="auto">Auto (Ikuti Jam Jadwal)</option>
+                            <option value="always_armed">Selalu Aktif (24 Jam Penuh)</option>
+                            <option value="disarmed">Standby / Hening (Nonaktif)</option>
+                        </select>
+                    </div>
+                    <p class="text-slate-400 text-[11px]">
+                        Atur jam aktif sistem alarm. Saat jadwal aktif, alarm suara dan notifikasi Telegram akan berbunyi saat mendeteksi penyusup/wajah asing. Di luar jam tersebut, sistem beralih ke mode hening.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1 text-[11px]">Mulai Aktif Malam (Jam Mulai):</label>
+                            <input type="time" id="cfg-arming-start" value="22:00" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono text-xs">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1 text-[11px]">Selesai / Pagi Hari (Jam Selesai):</label>
+                            <input type="time" id="cfg-arming-end" value="06:00" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono text-xs">
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2.5 cursor-pointer text-slate-300 pt-1">
+                        <input type="checkbox" id="cfg-telegram-unknown-faces" checked class="accent-emerald-400 rounded w-4 h-4">
+                        <span class="text-[11px]">Kirim Notifikasi Telegram saat Terdeteksi Wajah Tidak Dikenal (Orang Asing)</span>
+                    </label>
+                </div>
+
+                <!-- 4. Storage Retention & Auto Purge -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <div class="text-cyan-400 font-bold text-sm flex items-center gap-2">
+                        <i data-lucide="hard-drive" class="w-4 h-4"></i> Manajemen Penyimpanan (Storage Retention & FIFO Purge)
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Masa Simpan File Rekaman (Hari):</label>
+                            <input type="number" id="cfg-storage-retention" min="1" max="90" value="14" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Batas Maksimal Kapasitas Disk (%):</label>
+                            <input type="number" id="cfg-storage-max" min="50" max="98" value="90" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400 font-mono">
+                        </div>
+                    </div>
+                    <!-- Live Disk Breakdown -->
+                    <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 font-mono text-[11px] space-y-1">
+                        <div class="flex justify-between text-slate-300">
+                            <span>Penggunaan Harddisk:</span>
+                            <span id="cfg-disk-usage-text">0 GB / 0 GB (0%)</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div id="cfg-disk-progress" class="h-full bg-cyan-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-500 pt-1">
+                            <span id="cfg-snap-size">Snapshots: 0 MB</span>
+                            <span id="cfg-rec-size">Recordings: 0 MB</span>
+                            <span id="cfg-event-size">Events: 0 MB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Security PIN Protection -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-amber-400 font-bold text-sm flex items-center gap-2">
+                            <i data-lucide="lock" class="w-4 h-4"></i> Proteksi Akses Operator (Security PIN)
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="cfg-pin-enabled" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-slate-400 text-[11px]">Kunci menu Pengaturan, kontrol PTZ, dan hapus rekaman dengan 4-digit PIN keamanan.</p>
+                    <div class="max-w-xs pt-1">
+                        <label class="block font-mono text-slate-400 mb-1">4-Digit Security PIN:</label>
+                        <input type="password" id="cfg-security-pin" maxlength="6" value="1234" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-amber-300 outline-none focus:border-amber-400 font-mono tracking-widest text-center text-base">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Save -->
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2 shrink-0">
+                <button onclick="closeSettingsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg font-semibold">Tutup</button>
+                <button onclick="saveSettings()" class="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs rounded-lg font-bold transition">Simpan Pengaturan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. SECURITY PIN KEYPAD MODAL -->
+    <div id="pin-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-xs p-6 border border-cyan-500/40 shadow-2xl relative text-center">
+            <div class="w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mx-auto mb-3 text-cyan-400">
+                <i data-lucide="shield-check" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-tech font-bold text-base text-slate-100">Otorisasi Operator</h3>
+            <p class="text-xs text-slate-400 mb-4">Masukkan 4-digit PIN untuk melanjutkan tindakan ini</p>
+
+            <!-- PIN Circles Display -->
+            <div class="flex items-center justify-center gap-3 mb-6">
+                <span id="pin-dot-1" class="w-3.5 h-3.5 rounded-full border border-cyan-400 bg-slate-800 transition-all"></span>
+                <span id="pin-dot-2" class="w-3.5 h-3.5 rounded-full border border-cyan-400 bg-slate-800 transition-all"></span>
+                <span id="pin-dot-3" class="w-3.5 h-3.5 rounded-full border border-cyan-400 bg-slate-800 transition-all"></span>
+                <span id="pin-dot-4" class="w-3.5 h-3.5 rounded-full border border-cyan-400 bg-slate-800 transition-all"></span>
+            </div>
+
+            <!-- Keypad Buttons -->
+            <div class="grid grid-cols-3 gap-2.5 mb-4">
+                <button onclick="keypadPress('1')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">1</button>
+                <button onclick="keypadPress('2')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">2</button>
+                <button onclick="keypadPress('3')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">3</button>
+                <button onclick="keypadPress('4')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">4</button>
+                <button onclick="keypadPress('5')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">5</button>
+                <button onclick="keypadPress('6')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">6</button>
+                <button onclick="keypadPress('7')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">7</button>
+                <button onclick="keypadPress('8')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">8</button>
+                <button onclick="keypadPress('9')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">9</button>
+                <button onclick="keypadClear()" class="py-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 text-red-400 font-mono text-xs border border-slate-800 active:scale-95 transition">CLEAR</button>
+                <button onclick="keypadPress('0')" class="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 font-mono font-bold text-lg border border-slate-800 active:scale-95 transition">0</button>
+                <button onclick="keypadSubmit()" class="py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono font-bold text-xs border border-cyan-400 active:scale-95 transition">OK</button>
+            </div>
+
+            <button onclick="closePinModal()" class="text-xs text-slate-500 hover:text-slate-300">Batal Otorisasi</button>
+        </div>
+    </div>
+
+    <!-- 8. FACE RECOGNITION DATABASE MODAL (Feature 1) -->
+    <div id="faces-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-3xl p-6 border border-cyan-500/40 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="user-check" class="w-5 h-5 text-cyan-400"></i>
+                    <div>
+                        <h3 class="font-tech font-bold text-lg text-slate-100">Database Wajah Dikenal (Face Recognition)</h3>
+                        <p class="text-xs text-slate-400">Daftarkan wajah keluarga atau karyawan agar AI mengenali dan membedakannya dari orang asing</p>
+                    </div>
+                </div>
+                <button onclick="closeFacesModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-5 gap-5 pr-1 text-xs">
+                <!-- Left Column: Form Pendaftaran (2 cols) -->
+                <div class="md:col-span-2 p-4 bg-slate-900/90 rounded-xl border border-slate-800 space-y-3">
+                    <h4 class="font-tech font-bold text-cyan-400 text-sm flex items-center gap-1.5">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah Wajah Baru
+                    </h4>
+
+                    <div>
+                        <label class="block font-mono text-slate-400 mb-1">Nama Lengkap / Panggilan:</label>
+                        <input type="text" id="face-input-name" placeholder="Misal: Bapak / Ibu / Dimas" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-cyan-400">
+                    </div>
+
+                    <div>
+                        <label class="block font-mono text-slate-400 mb-1">Kategori / Peran:</label>
+                        <select id="face-input-role" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-cyan-300 outline-none">
+                            <option value="Keluarga">Keluarga (Penghuni Rumah)</option>
+                            <option value="Karyawan">Karyawan / Staf</option>
+                            <option value="Tamu VIP">Tamu VIP</option>
+                            <option value="Kurir">Kurir Langganan</option>
+                        </select>
+                    </div>
+
+                    <!-- Ambil Foto Opsi -->
+                    <div class="pt-2 border-t border-slate-800 space-y-2">
+                        <label class="block font-mono text-slate-400">Pilih Metode Foto:</label>
+                        
+                        <!-- Cara 1: Jepret dari CCTV langsung -->
+                        <div class="space-y-1.5">
+                            <div class="flex items-center gap-1.5">
+                                <select id="face-cam-select" class="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-slate-300 text-[11px] outline-none">
+                                    <option value="cam-1">CAM 01 - Main Entrance</option>
+                                    <option value="cam-2">CAM 02 - Corridor</option>
+                                    <option value="cam-3">CAM 03 - Backyard</option>
+                                    <option value="cam-4">CAM 04 - Mikrotik</option>
+                                </select>
+                                <button onclick="captureFaceFromCamera()" class="px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg font-semibold text-[11px] flex items-center gap-1">
+                                    <i data-lucide="camera" class="w-3.5 h-3.5"></i> Jepret
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Cara 2: Upload File Foto -->
+                        <div>
+                            <input type="file" id="face-file-input" accept="image/*" class="hidden" onchange="handleFaceFileUpload(event)">
+                            <button onclick="document.getElementById('face-file-input').click()" class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-[11px] flex items-center justify-center gap-1.5">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload Foto dari HP/Laptop
+                            </button>
+                        </div>
+
+                        <!-- Preview Foto yang akan didaftarkan -->
+                        <div id="face-preview-box" class="w-full h-32 bg-slate-950 rounded-lg border border-dashed border-slate-700 flex items-center justify-center overflow-hidden relative">
+                            <span class="text-slate-500 text-[11px] font-mono">Belum ada foto dipilih</span>
+                            <img id="face-preview-img" class="w-full h-full object-contain hidden" alt="Face Preview">
+                        </div>
+                    </div>
+
+                    <button onclick="submitNewFace()" id="btn-submit-face" class="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20">
+                        <i data-lucide="check" class="w-4 h-4"></i> Simpan ke Database AI
+                    </button>
+                </div>
+
+                <!-- Right Column: Daftar Wajah Terdaftar (3 cols) -->
+                <div class="md:col-span-3 flex flex-col space-y-2">
+                    <div class="flex items-center justify-between pb-1">
+                        <span class="font-tech font-bold text-slate-300 text-sm">Daftar Wajah Tersimpan:</span>
+                        <span id="faces-count-badge" class="font-mono text-cyan-400 text-[11px] bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">0 Wajah</span>
+                    </div>
+
+                    <div id="faces-list-container" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[280px]">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9. PRIVACY MASKING MODAL (Feature 4) -->
+    <div id="mask-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-2xl p-6 border border-amber-500/40 shadow-2xl relative flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="eye-off" class="w-5 h-5 text-amber-400"></i>
+                    <div>
+                        <h3 id="mask-modal-title" class="font-tech font-bold text-lg text-slate-100">Sensor & Privacy Masking</h3>
+                        <p class="text-xs text-slate-400">Klik dan seret (drag) pada layar untuk membuat kotak sensor hitam atau blur</p>
+                    </div>
+                </div>
+                <button onclick="closeMaskModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Interactive Drawing Viewport -->
+            <div class="relative bg-black rounded-xl overflow-hidden aspect-video border border-slate-700 flex items-center justify-center mb-4 select-none">
+                <img id="mask-canvas-bg" src="" class="w-full h-full object-contain pointer-events-none" alt="Camera Stream">
+                <canvas id="mask-canvas" class="absolute inset-0 w-full h-full cursor-crosshair"></canvas>
+            </div>
+
+            <!-- Mask Control Buttons -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                <div class="flex items-center gap-2">
+                    <label class="text-slate-400">Tipe Sensor:</label>
+                    <select id="mask-type-select" class="px-2.5 py-1 bg-slate-950 border border-slate-700 rounded text-cyan-300 outline-none">
+                        <option value="black">Kotak Hitam Sensor (Solid Mask)</option>
+                        <option value="blur">Sensor Blur (Mosaic Blur)</option>
+                    </select>
+                    <button onclick="clearCurrentMasks()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-red-400 rounded border border-slate-700 font-semibold">
+                        Hapus Semua
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="closeMaskModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold">Batal</button>
+                    <button onclick="savePrivacyMasks()" class="px-5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded font-bold transition">Simpan Sensor</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 10. YOUTUBE-STYLE CINEMA VIDEO PLAYER & SCRUBBER MODAL -->
+    <div id="cinema-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-2 sm:p-4 transition-all duration-300">
+        <!-- Main Player Window (Can be full modal or floating mini-player) -->
+        <div id="cinema-window" class="glass-panel rounded-2xl w-full max-w-4xl border border-cyan-500/40 shadow-2xl relative flex flex-col overflow-hidden bg-slate-950/95 transition-all duration-300">
+            <!-- Cinema Header -->
+            <div id="cinema-header" class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between z-10 shrink-0 select-none">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span id="cinema-type-badge" class="px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">REKAMAN</span>
+                    <h4 id="cinema-video-title" class="font-tech font-bold text-sm text-slate-100 truncate">Video Playback</h4>
+                    <span id="cinema-video-time" class="hidden sm:inline font-mono text-[11px] text-slate-400"></span>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <!-- Minimize to Floating Mini-Player -->
+                    <button onclick="toggleCinemaMiniPlayer()" id="btn-cinema-mini" class="p-1.5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 rounded transition" title="Kecilkan ke Mini Player (PiP)">
+                        <i data-lucide="picture-in-picture-2" class="w-4 h-4"></i>
+                    </button>
+                    <!-- Download Video -->
+                    <a id="cinema-download-link" href="#" download class="p-1.5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 rounded transition" title="Unduh File Video">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                    </a>
+                    <!-- Fullscreen Video -->
+                    <button onclick="toggleCinemaFullscreen()" class="p-1.5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 rounded transition" title="Layar Penuh">
+                        <i data-lucide="maximize" class="w-4 h-4"></i>
+                    </button>
+                    <!-- Close -->
+                    <button onclick="closeCinemaModal()" class="p-1.5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded transition" title="Tutup">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Video Player Viewport Container -->
+            <div id="cinema-viewport" class="relative bg-black aspect-video flex items-center justify-center overflow-hidden group select-none cursor-pointer" onclick="handleCinemaViewportClick(event)">
+                <video id="cinema-video" class="w-full h-full object-contain" preload="metadata" playsinline></video>
+
+                <!-- Center Play/Pause Ripple Overlay Animation -->
+                <div id="cinema-center-ripple" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200">
+                    <div class="w-16 h-16 rounded-full bg-slate-950/70 border border-cyan-400/50 flex items-center justify-center text-cyan-400 shadow-2xl backdrop-blur-sm transform scale-90 transition-transform duration-200" id="cinema-ripple-icon">
+                        <i data-lucide="play" class="w-8 h-8"></i>
+                    </div>
+                </div>
+
+                <!-- Double Tap / Rewind -10s Ripple Indicator (Left) -->
+                <div id="cinema-seek-left" class="absolute left-6 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-full text-cyan-300 font-mono text-xs border border-cyan-500/40 flex items-center gap-1 opacity-0 pointer-events-none transition-opacity duration-300">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> -10s
+                </div>
+
+                <!-- Double Tap / Forward +10s Ripple Indicator (Right) -->
+                <div id="cinema-seek-right" class="absolute right-6 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-full text-cyan-300 font-mono text-xs border border-cyan-500/40 flex items-center gap-1 opacity-0 pointer-events-none transition-opacity duration-300">
+                    +10s <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                </div>
+
+                <!-- Bottom YouTube-Style Overlay Controls (Fade in on hover or pause) -->
+                <div id="cinema-controls" class="absolute inset-x-0 bottom-0 pt-10 pb-2 px-3 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col justify-end opacity-100 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto" onclick="event.stopPropagation()">
+                    
+                    <!-- 1. Interactive YouTube Seek Bar / Scrubber -->
+                    <div class="relative w-full py-2 cursor-pointer group/scrub" id="cinema-scrubber-container" 
+                         onmousedown="startCinemaScrubbing(event)" 
+                         onmousemove="handleCinemaScrubberHover(event)" 
+                         onmouseleave="hideCinemaScrubberTooltip()">
+                        <!-- Hover Timestamp Tooltip ala YouTube -->
+                        <div id="cinema-scrub-tooltip" class="absolute -top-7 -translate-x-1/2 px-2 py-0.5 bg-slate-900 border border-cyan-500/50 text-cyan-300 rounded text-[10px] font-mono shadow pointer-events-none hidden">
+                            00:00
+                        </div>
+                        <!-- Background Track -->
+                        <div class="w-full h-1.5 group-hover/scrub:h-2.5 bg-slate-800/90 rounded-full overflow-hidden transition-all duration-150 relative">
+                            <!-- Buffered bar -->
+                            <div id="cinema-buffered-bar" class="absolute top-0 bottom-0 left-0 bg-slate-600/50 rounded-full" style="width: 0%;"></div>
+                            <!-- Played progress bar (YouTube Red) -->
+                            <div id="cinema-played-bar" class="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-red-600 to-red-500 rounded-full transition-all" style="width: 0%;"></div>
+                        </div>
+                        <!-- Draggable Scrubber Thumb (Bulatan Merah ala YouTube) -->
+                        <div id="cinema-scrub-thumb" class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 group-hover/scrub:w-4 group-hover/scrub:h-4 bg-red-500 border-2 border-white rounded-full shadow-md shadow-red-500/50 pointer-events-none transition-transform" style="left: 0%;"></div>
+                    </div>
+
+                    <!-- 2. Bottom Toolbar Buttons -->
+                    <div class="flex items-center justify-between text-xs text-slate-200 mt-1">
+                        <!-- Left: Play/Pause, Rewind 10, Forward 10, Volume, Time -->
+                        <div class="flex items-center gap-2">
+                            <!-- Play / Pause Button -->
+                            <button onclick="toggleCinemaPlay()" id="btn-cinema-play" class="p-1.5 hover:text-cyan-400 transition" title="Putar / Jeda (Spasi)">
+                                <i data-lucide="play" class="w-5 h-5"></i>
+                            </button>
+                            <!-- Rewind 10s -->
+                            <button onclick="seekCinemaRelative(-10)" class="p-1.5 hover:text-cyan-400 transition flex items-center text-[11px] font-mono gap-0.5" title="Mundur 10 Detik (J atau Panah Kiri)">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                <span class="text-[10px]">10s</span>
+                            </button>
+                            <!-- Forward 10s -->
+                            <button onclick="seekCinemaRelative(10)" class="p-1.5 hover:text-cyan-400 transition flex items-center text-[11px] font-mono gap-0.5" title="Maju 10 Detik (L atau Panah Kanan)">
+                                <span class="text-[10px]">10s</span>
+                                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                            </button>
+                            
+                            <!-- Volume Button & Slider -->
+                            <div class="flex items-center gap-1.5 group/vol">
+                                <button onclick="toggleCinemaMute()" id="btn-cinema-vol" class="p-1.5 hover:text-cyan-400 transition">
+                                    <i data-lucide="volume-2" class="w-4 h-4"></i>
+                                </button>
+                                <input type="range" id="cinema-vol-slider" min="0" max="1" step="0.05" value="1" 
+                                       class="w-14 h-1.5 bg-slate-700 accent-cyan-400 rounded cursor-pointer" 
+                                       oninput="setCinemaVolume(this.value)">
+                            </div>
+
+                            <!-- Current Time / Duration -->
+                            <span class="font-mono text-slate-400 text-[11px] ml-1">
+                                <span id="cinema-cur-time" class="text-slate-100 font-semibold">00:00</span>
+                                <span class="text-slate-500">/</span>
+                                <span id="cinema-dur-time">00:00</span>
+                            </span>
+                        </div>
+
+                        <!-- Right: Speed, Theater/Mini, Fullscreen -->
+                        <div class="flex items-center gap-2">
+                            <!-- Playback Speed Picker (0.5x, 1x, 2x, 4x) -->
+                            <div class="flex items-center gap-1 font-mono text-[11px]">
+                                <span class="text-slate-500 hidden sm:inline">Speed:</span>
+                                <select id="cinema-speed-select" onchange="setCinemaSpeed(this.value)" class="bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1.5 py-0.5 outline-none text-xs cursor-pointer">
+                                    <option value="0.5">0.5x</option>
+                                    <option value="1" selected>1.0x (Normal)</option>
+                                    <option value="1.5">1.5x</option>
+                                    <option value="2">2.0x (Cepat)</option>
+                                    <option value="4">4.0x (Sangat Cepat)</option>
+                                </select>
+                            </div>
+
+                            <!-- Mini Player Toggle -->
+                            <button onclick="toggleCinemaMiniPlayer()" class="p-1.5 hover:text-cyan-400 transition" title="Floating Mini Player">
+                                <i data-lucide="picture-in-picture-2" class="w-4 h-4"></i>
+                            </button>
+
+                            <!-- Fullscreen Toggle -->
+                            <button onclick="toggleCinemaFullscreen()" class="p-1.5 hover:text-cyan-400 transition" title="Layar Penuh (F)">
+                                <i data-lucide="maximize" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg border shadow-xl backdrop-blur-md font-mono text-xs transition-all duration-300 transform translate-y-10 opacity-0 pointer-events-none">
+        Notification
+    </div>
+
+    <!-- Application JS -->
+    <script src="/static/js/app.js?v=4.2"></script>
+</body>
+</html>

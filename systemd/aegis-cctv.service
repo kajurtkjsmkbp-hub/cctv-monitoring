@@ -1,0 +1,17 @@
+[Unit]
+Description=Aegis Vision - ONVIF CCTV Command Station
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cctv-monitoring
+ExecStart=/opt/cctv-monitoring/venv/bin/python app.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

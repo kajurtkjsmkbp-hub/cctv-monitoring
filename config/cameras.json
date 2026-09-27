@@ -1,0 +1,62 @@
+[
+  {
+    "id": "cam-1",
+    "name": "CAM 01 - Main Entrance",
+    "ip": "192.168.1.65",
+    "mac": "00:55:7b:79:b2:aa",
+    "onvif_port": 8899,
+    "rtsp_url": "rtsp://192.168.1.65/live/ch00_1",
+    "rtsp_hd_url": "rtsp://192.168.1.65/live/ch00_0",
+    "type": "onvif",
+    "has_ptz": true,
+    "stream_quality": "hd",
+    "motion_detection": true,
+    "filter": "normal",
+    "enabled": true
+  },
+  {
+    "id": "cam-2",
+    "name": "CAM 02 - Corridor & Hallway",
+    "ip": "192.168.1.66",
+    "mac": "00:55:7b:77:29:65",
+    "onvif_port": 8899,
+    "rtsp_url": "rtsp://192.168.1.66/live/ch00_1",
+    "rtsp_hd_url": "rtsp://192.168.1.66/live/ch00_0",
+    "type": "onvif",
+    "has_ptz": true,
+    "stream_quality": "hd",
+    "motion_detection": true,
+    "filter": "normal",
+    "enabled": true
+  },
+  {
+    "id": "cam-3",
+    "name": "CAM 03 - Backyard & Perimeter",
+    "ip": "192.168.1.67",
+    "mac": "00:55:7b:f4:34:b8",
+    "onvif_port": 8899,
+    "rtsp_url": "rtsp://192.168.1.67/live/ch00_1",
+    "rtsp_hd_url": "rtsp://192.168.1.67/live/ch00_0",
+    "type": "onvif",
+    "has_ptz": true,
+    "stream_quality": "hd",
+    "motion_detection": true,
+    "filter": "normal",
+    "enabled": true
+  },
+  {
+    "id": "cam-4",
+    "name": "CAM 04 - Ruang Tamu",
+    "ip": "192.168.50.69",
+    "mac": "00:55:7b:a0:8f:b2",
+    "onvif_port": 8899,
+    "rtsp_url": "rtsp://192.168.50.69/live/ch00_1",
+    "rtsp_hd_url": "rtsp://192.168.50.69/live/ch00_0",
+    "type": "onvif",
+    "has_ptz": true,
+    "stream_quality": "hd",
+    "motion_detection": true,
+    "filter": "normal",
+    "enabled": true
+  }
+]

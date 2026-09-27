@@ -1,0 +1,42 @@
+{
+  "telegram_enabled": false,
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+  "telegram_alert_mode": "person",
+  "telegram_cooldown_seconds": 30,
+  "ai_detection_enabled": true,
+  "virtual_tripwire_enabled": false,
+  "show_bounding_boxes": true,
+  "face_auto_zoom_enabled": true,
+  "face_zoom_threshold": 50,
+  "face_zoom_duration": 2.0,
+  "face_zoom_cooldown": 4.0,
+  "storage_retention_days": 30,
+  "storage_max_percent": 100,
+  "arming_mode": "auto",
+  "arming_start_time": "22:00",
+  "arming_end_time": "06:00",
+  "telegram_unknown_faces": true,
+  "security_pin": "1234",
+  "pin_enabled": false,
+  "patrol_interval_seconds": 8,
+  "floorplan_image": "/static/images/default_floorplan.svg",
+  "camera_map_coords": {
+    "cam-1": {
+      "x": 18,
+      "y": 80
+    },
+    "cam-2": {
+      "x": 48,
+      "y": 50
+    },
+    "cam-3": {
+      "x": 82,
+      "y": 25
+    },
+    "cam-4": {
+      "x": 80,
+      "y": 78
+    }
+  }
+}

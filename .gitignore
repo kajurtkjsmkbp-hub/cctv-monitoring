@@ -1,0 +1,30 @@
+# Python cache & virtual environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+env/
+ENV/
+
+# CCTV Recorded Media & User Snapshots (Keep folder structure, ignore media)
+static/recordings/*
+!static/recordings/.gitkeep
+static/snapshots/*
+!static/snapshots/.gitkeep
+static/events/*
+!static/events/.gitkeep
+static/faces/*
+!static/faces/.gitkeep
+
+# Temporary / Scratch scripts
+scratch_*.py
+test_audio.mp3
+test_onvif_replay.py
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
