@@ -1,5 +1,5 @@
 """
-Aegis Vision - Next-Gen CCTV & ONVIF Command Center
+Khanza.NET Vision - Next-Gen CCTV & ONVIF Command Center
 Main Flask Backend Server
 """
 
@@ -514,7 +514,7 @@ def get_timeline():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  AEGIS VISION - CCTV & ONVIF COMMAND STATION")
+    print("  KHANZA.NET VISION - CCTV & ONVIF COMMAND STATION")
     print("  Web Server: http://127.0.0.1:5000")
     print("  Local IP:   http://192.168.1.81:5000")
     print("=" * 60)

@@ -1,4 +1,4 @@
-# 🧠 INGATAN ABADI SISTEM (AEGIS VISION CCTV MEMORY BANK)
+# 🧠 INGATAN ABADI SISTEM (KHANZA.NET VISION CCTV MEMORY BANK)
 
 > **Dokumen ini dibuat khusus sebagai pusat memori abadi AI Antigravity.**  
 > Kapan pun sesi ditutup, logout, atau Anda login kembali di masa depan, membaca file ini akan langsung mengembalikan 100% konteks, arsitektur, konfigurasi jaringan, serta riwayat pengembangan proyek ini.
@@ -7,7 +7,7 @@
 
 ## 📌 1. Identitas & Repositori Proyek
 
-* **Nama Sistem:** Aegis Vision • ONVIF CCTV Command Station
+* **Nama Sistem:** Khanza.NET Vision • ONVIF CCTV Command Station
 * **Versi:** v2.5 PRO
 * **Tipe Sistem:** Video Management System (VMS) berbasis Web, Single Page Application (SPA), ultra low-latency RTSP proxying, AI Motion & Biometric Recognition, Timeshift DVR, dan PTZ Command.
 * **GitHub Repository:** [https://github.com/kajurtkjsmkbp-hub/cctv-monitoring.git](https://github.com/kajurtkjsmkbp-hub/cctv-monitoring.git)

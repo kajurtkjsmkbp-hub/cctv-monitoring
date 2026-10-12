@@ -1,6 +1,6 @@
 {
-  "name": "Aegis Vision Surveillance Station",
-  "short_name": "Aegis CCTV",
+  "name": "Khanza.NET Vision Surveillance Station",
+  "short_name": "Khanza CCTV",
   "description": "Enterprise-Grade Professional CCTV & ONVIF Command Center",
   "start_url": "/",
   "display": "standalone",
