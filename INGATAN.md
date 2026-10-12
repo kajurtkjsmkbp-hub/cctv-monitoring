@@ -87,6 +87,7 @@ Semua kamera adalah kamera fisik tipe **macro-video-soft IPCamera (V380 / ONVIF 
      * Baris 2: Alamat IP + Port + Badge Ping Latency berwarna + FPS + Resolusi.
      * Responsif sempurna: tidak terpotong di layar HP maupun monitor PC.
    * **Master Scrubber Synchronized Playback:** Mengontrol mundur 10s, 30s, pause, dan kembali ke siaran langsung untuk ke-4 kamera secara bersamaan.
+   * **Debounced Smooth Reconnect (Anti-Flicker):** Reconnect stream menggunakan penundaan debounce 2.5s yang tenang jika socket terputus, tanpa melakukan brute-force swapping gambar `img.src` per 40ms yang membuat layar berkedip/refresh terus-menerus.
 
 ---
 
