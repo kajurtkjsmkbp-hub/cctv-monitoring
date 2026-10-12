@@ -458,12 +458,13 @@ function selectCameraForSingleView(camId) {
     }
 }
 
-const activeFrameLoops = {};
+const streamReconnectTimeouts = {};
 
-// Stream Reconnect on Error or Refresh
+// Clean Stream Reconnect on Error or Refresh
 function reloadStream(camId) {
-    if (activeFrameLoops[camId]) {
-        activeFrameLoops[camId] = false;
+    if (streamReconnectTimeouts[camId]) {
+        clearTimeout(streamReconnectTimeouts[camId]);
+        streamReconnectTimeouts[camId] = null;
     }
     const img = document.getElementById(`img-${camId}`);
     if (img) {
@@ -472,39 +473,16 @@ function reloadStream(camId) {
 }
 
 function handleStreamError(camId) {
-    console.warn(`[Aegis Stream] MJPEG socket stalled for ${camId}, activating high-speed frame mode...`);
-    startFrameLoop(camId);
-}
+    // Prevent continuous flashing/flickering loops by using a gentle debounced reconnect
+    if (streamReconnectTimeouts[camId]) return;
 
-// Ultra-reliable Direct Frame Ingestion (Zero-stalls, bypasses Chrome socket limit)
-function startFrameLoop(camId) {
-    if (activeFrameLoops[camId]) return;
-    activeFrameLoops[camId] = true;
-    const img = document.getElementById(`img-${camId}`);
-    if (!img) return;
-
-    let isFetching = false;
-    function fetchNext() {
-        if (!activeFrameLoops[camId]) return;
-        if (isFetching) return;
-        isFetching = true;
-
-        const nextImg = new Image();
-        nextImg.onload = () => {
-            if (img && activeFrameLoops[camId]) {
-                img.src = nextImg.src;
-            }
-            isFetching = false;
-            setTimeout(fetchNext, 40); // ~25 FPS
-        };
-        nextImg.onerror = () => {
-            isFetching = false;
-            setTimeout(fetchNext, 800);
-        };
-        nextImg.src = `/api/frame/${camId}?t=${Date.now()}`;
-    }
-
-    fetchNext();
+    streamReconnectTimeouts[camId] = setTimeout(() => {
+        streamReconnectTimeouts[camId] = null;
+        const img = document.getElementById(`img-${camId}`);
+        if (img) {
+            img.src = `/stream/${camId}?t=${Date.now()}`;
+        }
+    }, 2500);
 }
 
 // Layout Switcher - Seamless, never wipes HTML or disconnects streams
