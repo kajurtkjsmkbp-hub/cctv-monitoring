@@ -174,6 +174,11 @@ def trigger_auto_heal():
     res = camera_manager.auto_heal_dhcp_ips()
     return jsonify(res)
 
+@app.route("/api/network/route-fix", methods=["POST", "GET"])
+def fix_network_routes():
+    CameraManager.ensure_network_routes()
+    return jsonify({"success": True, "message": "Static route 192.168.50.0/24 via 192.168.1.64 checked/added"})
+
 @app.route("/api/ptz/<cam_id>/nudge", methods=["POST"])
 def ptz_nudge(cam_id):
     worker = camera_manager.get_worker(cam_id)

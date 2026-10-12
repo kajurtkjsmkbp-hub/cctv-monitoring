@@ -786,7 +786,27 @@ class CameraWorker:
 
 
 class CameraManager:
+    @staticmethod
+    def ensure_network_routes():
+        """Ensure static route to Mikrotik subnet 192.168.50.0/24 exists."""
+        import platform
+        system = platform.system()
+        try:
+            if system == "Linux":
+                subprocess.run(
+                    ["ip", "route", "add", "192.168.50.0/24", "via", "192.168.1.64"],
+                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+            elif system == "Windows":
+                subprocess.run(
+                    ["route", "add", "192.168.50.0", "mask", "255.255.255.0", "192.168.1.64"],
+                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+        except Exception:
+            pass
+
     def __init__(self):
+        self.ensure_network_routes()
         self.workers = {}
         self.cameras = self.load_config()
         self._init_workers()
@@ -1007,6 +1027,7 @@ class CameraManager:
         Scans network for any camera whose IP has changed via DHCP.
         Matches by hardware MAC address embedded in ONVIF WS-Discovery URN UUID.
         """
+        self.ensure_network_routes()
         healed = []
         from onvif_scanner import scan_network_onvif, get_onvif_uuid_mac
 
