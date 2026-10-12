@@ -176,8 +176,19 @@ def trigger_auto_heal():
 
 @app.route("/api/network/route-fix", methods=["POST", "GET"])
 def fix_network_routes():
-    CameraManager.ensure_network_routes()
-    return jsonify({"success": True, "message": "Static route 192.168.50.0/24 via 192.168.1.64 checked/added"})
+    import platform
+    diag = {"system": platform.system()}
+    if platform.system() == "Linux":
+        add_res = subprocess.run(["ip", "route", "add", "192.168.50.0/24", "via", "192.168.1.64"], capture_output=True, text=True)
+        diag["route_add_stdout"] = add_res.stdout
+        diag["route_add_stderr"] = add_res.stderr
+        diag["route_add_code"] = add_res.returncode
+        diag["ip_route"] = subprocess.run(["ip", "route"], capture_output=True, text=True).stdout
+        diag["ping_cam4"] = subprocess.run(["ping", "-c", "2", "-W", "2", "192.168.50.69"], capture_output=True, text=True).stdout
+        diag["ping_mikrotik"] = subprocess.run(["ping", "-c", "2", "-W", "2", "192.168.1.64"], capture_output=True, text=True).stdout
+    else:
+        CameraManager.ensure_network_routes()
+    return jsonify({"success": True, "diagnostics": diag})
 
 @app.route("/api/ptz/<cam_id>/nudge", methods=["POST"])
 def ptz_nudge(cam_id):
