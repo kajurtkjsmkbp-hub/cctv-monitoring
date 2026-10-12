@@ -9,7 +9,7 @@
     "rtsp_hd_url": "rtsp://192.168.1.65/live/ch00_0",
     "type": "onvif",
     "has_ptz": true,
-    "stream_quality": "hd",
+    "stream_quality": "sub",
     "motion_detection": true,
     "filter": "normal",
     "enabled": true
@@ -24,7 +24,7 @@
     "rtsp_hd_url": "rtsp://192.168.1.66/live/ch00_0",
     "type": "onvif",
     "has_ptz": true,
-    "stream_quality": "hd",
+    "stream_quality": "sub",
     "motion_detection": true,
     "filter": "normal",
     "enabled": true
@@ -39,7 +39,7 @@
     "rtsp_hd_url": "rtsp://192.168.1.67/live/ch00_0",
     "type": "onvif",
     "has_ptz": true,
-    "stream_quality": "hd",
+    "stream_quality": "sub",
     "motion_detection": true,
     "filter": "normal",
     "enabled": true
@@ -54,7 +54,7 @@
     "rtsp_hd_url": "rtsp://192.168.50.69/live/ch00_0",
     "type": "onvif",
     "has_ptz": true,
-    "stream_quality": "hd",
+    "stream_quality": "sub",
     "motion_detection": true,
     "filter": "normal",
     "enabled": true

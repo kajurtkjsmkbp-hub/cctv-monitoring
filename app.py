@@ -33,13 +33,17 @@ def gen_frames(cam_id):
     if not worker:
         return
     try:
+        last_id = -1
         while True:
-            frame_bytes = worker.get_jpeg_frame()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n'
-                   + frame_bytes + b'\r\n')
-            time.sleep(0.04) # ~25 FPS
+            frame_bytes, fid = worker.get_new_jpeg_frame(last_id, timeout=0.04)
+            if frame_bytes and fid != last_id:
+                last_id = fid
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n'
+                       + frame_bytes + b'\r\n')
+            else:
+                time.sleep(0.01)
     except Exception:
         pass
 

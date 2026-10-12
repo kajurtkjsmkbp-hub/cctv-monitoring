@@ -374,3 +374,12 @@ body {
     display: none;
   }
 }
+
+/* GPU-Accelerated Fluid Video Viewport */
+.cam-card-viewport img {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  image-rendering: auto;
+}
