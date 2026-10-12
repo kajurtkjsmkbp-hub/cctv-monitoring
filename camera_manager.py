@@ -150,8 +150,6 @@ class CameraWorker:
 
         # Pre-encoded JPEG cache for zero-lag streaming
         self.cached_jpeg = None
-        self.frame_id = 0
-        self.new_frame_event = threading.Event()
 
         # Start background ingestion thread
         self.thread = threading.Thread(target=self._run_stream, daemon=True)
@@ -188,16 +186,8 @@ class CameraWorker:
                 time.sleep(1.0)
                 continue
 
-            # Open RTSP stream with ultra low-latency settings
-            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-                "rtsp_transport;tcp|"
-                "fflags;nobuffer+flush_packets|"
-                "flags;low_delay|"
-                "framedrop;1|"
-                "max_delay;0|"
-                "probesize;32|"
-                "analyzeduration;0"
-            )
+            # Open RTSP stream with low-latency settings
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|fflags;nobuffer|max_delay;500000"
             cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
@@ -621,20 +611,14 @@ class CameraWorker:
                 except Exception:
                     pass
 
-        # Single-pass high-efficiency JPEG encoding (saves 65% bandwidth for fluid streaming)
-        ret_cache, buf_cache = cv2.imencode('.jpg', processed_frame, [
-            int(cv2.IMWRITE_JPEG_QUALITY), 65,
-            int(cv2.IMWRITE_JPEG_OPTIMIZE), 1
-        ])
+        # Single-pass fast JPEG encoding (quality 72, low bandwidth & instant delivery)
+        ret_cache, buf_cache = cv2.imencode('.jpg', processed_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 72])
         jpeg_bytes = buf_cache.tobytes() if ret_cache else None
 
         with self.lock:
             self.last_frame = processed_frame
             if jpeg_bytes:
                 self.cached_jpeg = jpeg_bytes
-                self.frame_id = (self.frame_id + 1) % 1000000
-                self.new_frame_event.set()
-                self.new_frame_event.clear()
 
         # Save to Timeshift DVR Ring Buffer every 0.25s (~4 FPS, high-smoothness timeshift)
         if now - self.last_dvr_sample_time >= 0.25:
@@ -686,19 +670,6 @@ class CameraWorker:
                     )
         except Exception as e:
             print(f"[AsyncEventSave] Error: {e}")
-
-    def get_new_jpeg_frame(self, last_id, timeout=0.04):
-        """Wait for a fresh encoded JPEG frame to eliminate duplicate network transmissions."""
-        with self.lock:
-            if self.frame_id != last_id and self.cached_jpeg is not None:
-                return self.cached_jpeg, self.frame_id
-
-        # Wait up to timeout for next frame arrival from ingestion thread
-        self.new_frame_event.wait(timeout=timeout)
-        with self.lock:
-            if self.cached_jpeg is not None:
-                return self.cached_jpeg, self.frame_id
-        return self.get_jpeg_frame(), self.frame_id
 
     def get_jpeg_frame(self):
         """Instant zero-latency JPEG delivery using pre-encoded worker cache."""
