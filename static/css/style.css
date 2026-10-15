@@ -383,3 +383,12 @@ body {
   -webkit-backface-visibility: hidden;
   image-rendering: auto;
 }
+
+/* Real-Time Digital Zoom & Pan Styling */
+.cam-card-viewport {
+  touch-action: none;
+}
+.cam-zoom-container {
+  will-change: transform;
+  transform-origin: center center;
+}

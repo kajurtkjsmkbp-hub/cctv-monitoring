@@ -234,7 +234,7 @@ function renderCameraGrid() {
     // Preserve existing live stream DOM elements to prevent socket drop / hanging
     state.cameras.forEach((cam, index) => {
         let card = document.getElementById(`card-${cam.id}`);
-        if (!card || !document.getElementById(`dvr-track-${cam.id}`)) {
+        if (!card || !document.getElementById(`dvr-track-${cam.id}`) || !document.getElementById(`zoom-container-${cam.id}`)) {
             const newCard = createCameraCard(cam, index);
             if (card) {
                 card.replaceWith(newCard);
@@ -244,6 +244,7 @@ function renderCameraGrid() {
             card = newCard;
             lucide.createIcons();
         }
+        initCameraZoom(cam.id);
         applyLayoutToCard(card, index);
     });
 
@@ -369,18 +370,33 @@ function createCameraCard(cam, index) {
             </div>
         </div>
 
-        <!-- Video Player Viewport -->
-        <div class="cam-card-viewport relative bg-black flex-1 min-h-[220px] aspect-video flex items-center justify-center overflow-hidden">
-            <img id="img-${cam.id}" 
-                 src="${streamUrl}" 
-                 alt="${cam.name}" 
-                 class="w-full h-full object-contain select-none"
-                 onerror="handleStreamError('${cam.id}')" />
+        <!-- Video Player Viewport with Real-Time Digital Zoom & Pan -->
+        <div class="cam-card-viewport relative bg-black flex-1 min-h-[220px] aspect-video flex items-center justify-center overflow-hidden cursor-default select-none"
+             id="viewport-${cam.id}">
 
-            <video id="dvr-video-${cam.id}" class="w-full h-full object-contain hidden" playsinline></video>
+            <!-- Hardware Accelerated Transform Container for Realtime Stream Scaling -->
+            <div id="zoom-container-${cam.id}" class="cam-zoom-container w-full h-full flex items-center justify-center origin-center select-none" style="will-change: transform;">
+                <img id="img-${cam.id}" 
+                     src="${streamUrl}" 
+                     alt="${cam.name}" 
+                     class="w-full h-full object-contain pointer-events-none select-none"
+                     onerror="handleStreamError('${cam.id}')" />
+
+                <video id="dvr-video-${cam.id}" class="w-full h-full object-contain pointer-events-none hidden" playsinline></video>
+            </div>
+
+            <!-- Digital Zoom Badge Overlay (Shows magnification & reset on click) -->
+            <div id="zoom-badge-${cam.id}" 
+                 onclick="resetCameraZoom('${cam.id}')"
+                 class="hidden absolute top-3 left-3 px-2 py-0.5 bg-cyan-950/85 hover:bg-cyan-900 border border-cyan-500/70 text-cyan-300 font-mono text-[11px] font-bold rounded shadow-lg backdrop-blur cursor-pointer z-10 items-center gap-1.5 transition select-none" 
+                 title="Klik atau Double-Click untuk Reset Zoom">
+                <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span id="zoom-val-${cam.id}">1.0x</span>
+                <span class="text-[9px] text-cyan-400/80 bg-cyan-500/20 px-1 py-0.2 rounded hover:text-white">RESET</span>
+            </div>
 
             <!-- Recording Indicator Overlay -->
-            <div id="rec-banner-${cam.id}" class="${cam.is_recording ? 'flex' : 'hidden'} absolute top-3 right-3 px-2.5 py-1 bg-red-600/80 text-white font-mono font-bold text-xs rounded items-center gap-1.5 z-10">
+            <div id="rec-banner-${cam.id}" class="${cam.is_recording ? 'flex' : 'hidden'} absolute top-3 right-3 px-2.5 py-1 bg-red-600/80 text-white font-mono font-bold text-xs rounded items-center gap-1.5 z-10 pointer-events-none">
                 <span class="w-2 h-2 rounded-full bg-white animate-ping"></span> REC
             </div>
 
@@ -419,6 +435,9 @@ function createCameraCard(cam, index) {
                 </div>
 
                 <div class="flex items-center gap-1">
+                    <button onclick="handleQuickZoomBtn('${cam.id}')" title="Zoom In / Reset (Atau Scroll Mouse Pada Video)" class="p-1.5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 rounded transition">
+                        <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                    </button>
                     <button onclick="reloadStream('${cam.id}')" title="Segarkan Video Stream" class="p-1.5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 rounded transition">
                         <i data-lucide="rotate-cw" class="w-4 h-4"></i>
                     </button>
@@ -3944,6 +3963,325 @@ async function handleLogout() {
     showLoginModal();
     showToast('Anda telah keluar dari sesi sistem pengawasan.', 'info', 'LOGOUT');
 }
+
+// ==========================================
+// 20. REAL-TIME INTERACTIVE DIGITAL ZOOM & PAN (GPU-ACCELERATED)
+// ==========================================
+const cameraZoomState = {};
+let activePanCamId = null;
+
+function getCamZoomState(camId) {
+    if (!cameraZoomState[camId]) {
+        cameraZoomState[camId] = {
+            scale: 1.0,
+            x: 0,
+            y: 0,
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            touchDist: 0,
+            touchScale: 1.0
+        };
+    }
+    return cameraZoomState[camId];
+}
+
+function initCameraZoom(camId) {
+    const viewport = document.getElementById(`viewport-${camId}`);
+    if (!viewport || viewport.dataset.zoomInitialized === 'true') return;
+    viewport.dataset.zoomInitialized = 'true';
+
+    // 1. Mouse Wheel for Realtime Fluid Zoom
+    viewport.addEventListener('wheel', (e) => {
+        handleCameraWheelZoom(camId, e);
+    }, { passive: false });
+
+    // 2. Mouse Down for Pan / Dragging
+    viewport.addEventListener('mousedown', (e) => {
+        handleCameraPanStart(camId, e);
+    });
+
+    // 3. Double-Click to Instant Reset
+    viewport.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resetCameraZoom(camId);
+    });
+
+    // 4. Touch Gestures: Pinch-to-Zoom & Drag Pan (Mobile / Tablet)
+    viewport.addEventListener('touchstart', (e) => {
+        const zState = getCamZoomState(camId);
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            zState.touchDist = dist;
+            zState.touchScale = zState.scale;
+        } else if (e.touches.length === 1 && zState.scale > 1.0) {
+            zState.isDragging = true;
+            zState.startX = e.touches[0].clientX - zState.x;
+            zState.startY = e.touches[0].clientY - zState.y;
+            activePanCamId = camId;
+        }
+    }, { passive: false });
+
+    viewport.addEventListener('touchmove', (e) => {
+        const zState = getCamZoomState(camId);
+        const container = document.getElementById(`zoom-container-${camId}`);
+        const badge = document.getElementById(`zoom-badge-${camId}`);
+        const valSpan = document.getElementById(`zoom-val-${camId}`);
+        if (!container) return;
+
+        if (e.touches.length === 2 && zState.touchDist > 0) {
+            e.preventDefault();
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const ratio = dist / zState.touchDist;
+            let newScale = Math.max(1.0, Math.min(8.0, zState.touchScale * ratio));
+            if (newScale < 1.06) newScale = 1.0;
+
+            zState.scale = newScale;
+            if (newScale === 1.0) {
+                zState.x = 0;
+                zState.y = 0;
+                container.style.transform = '';
+                if (badge) { badge.classList.add('hidden'); badge.classList.remove('flex'); }
+            } else {
+                container.style.transform = `translate3d(${zState.x.toFixed(2)}px, ${zState.y.toFixed(2)}px, 0px) scale(${newScale.toFixed(3)})`;
+                if (badge && valSpan) {
+                    valSpan.textContent = newScale.toFixed(1) + 'x';
+                    badge.classList.remove('hidden');
+                    badge.classList.add('flex');
+                }
+            }
+        } else if (e.touches.length === 1 && zState.isDragging) {
+            e.preventDefault();
+            const rect = viewport.getBoundingClientRect();
+            const maxTranslateX = (rect.width * (zState.scale - 1)) / 2;
+            const maxTranslateY = (rect.height * (zState.scale - 1)) / 2;
+
+            let curX = e.touches[0].clientX - zState.startX;
+            let curY = e.touches[0].clientY - zState.startY;
+
+            zState.x = Math.max(-maxTranslateX, Math.min(maxTranslateX, curX));
+            zState.y = Math.max(-maxTranslateY, Math.min(maxTranslateY, curY));
+
+            container.style.transform = `translate3d(${zState.x.toFixed(2)}px, ${zState.y.toFixed(2)}px, 0px) scale(${zState.scale.toFixed(3)})`;
+        }
+    }, { passive: false });
+
+    viewport.addEventListener('touchend', (e) => {
+        const zState = getCamZoomState(camId);
+        if (e.touches.length < 2) zState.touchDist = 0;
+        if (e.touches.length === 0) {
+            zState.isDragging = false;
+            activePanCamId = null;
+        }
+    });
+}
+
+function handleCameraWheelZoom(camId, e) {
+    const viewport = document.getElementById(`viewport-${camId}`);
+    const container = document.getElementById(`zoom-container-${camId}`);
+    const badge = document.getElementById(`zoom-badge-${camId}`);
+    const valSpan = document.getElementById(`zoom-val-${camId}`);
+    if (!viewport || !container) return;
+
+    // Prevent whole window/page from scrolling while zooming
+    e.preventDefault();
+    e.stopPropagation();
+
+    const zState = getCamZoomState(camId);
+    const rect = viewport.getBoundingClientRect();
+
+    // Mouse focal point relative to viewport center
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const offsetX = e.clientX - centerX;
+    const offsetY = e.clientY - centerY;
+
+    const oldScale = zState.scale;
+    // Step: 1.25x on scroll up (zoom in), 0.8x on scroll down (zoom out)
+    const factor = e.deltaY < 0 ? 1.25 : 0.8;
+    let newScale = oldScale * factor;
+
+    // Min and Max zoom thresholds
+    if (newScale < 1.08) {
+        newScale = 1.0;
+    } else if (newScale > 8.0) {
+        newScale = 8.0;
+    }
+
+    if (newScale === 1.0) {
+        zState.scale = 1.0;
+        zState.x = 0;
+        zState.y = 0;
+        zState.isDragging = false;
+        container.style.transition = 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        container.style.transform = '';
+        viewport.style.cursor = 'default';
+        if (badge) {
+            badge.classList.add('hidden');
+            badge.classList.remove('flex');
+        }
+        setTimeout(() => {
+            if (container) container.style.transition = '';
+        }, 150);
+        return;
+    }
+
+    // Focal Point Mathematics: Keep point under mouse fixed while scaling
+    let newX = offsetX - (offsetX - zState.x) * (newScale / oldScale);
+    let newY = offsetY - (offsetY - zState.y) * (newScale / oldScale);
+
+    // Boundary constraints to keep video within viewport
+    const maxTranslateX = (rect.width * (newScale - 1)) / 2;
+    const maxTranslateY = (rect.height * (newScale - 1)) / 2;
+    newX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newX));
+    newY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newY));
+
+    zState.scale = newScale;
+    zState.x = newX;
+    zState.y = newY;
+
+    container.style.transition = 'transform 0.06s ease-out';
+    container.style.transform = `translate3d(${newX.toFixed(2)}px, ${newY.toFixed(2)}px, 0px) scale(${newScale.toFixed(3)})`;
+    viewport.style.cursor = 'grab';
+
+    if (badge && valSpan) {
+        valSpan.textContent = newScale.toFixed(1) + 'x';
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+    }
+
+    setTimeout(() => {
+        if (container) container.style.transition = '';
+    }, 60);
+}
+
+function handleCameraPanStart(camId, e) {
+    // Only primary left click
+    if (e.button !== 0) return;
+    // Don't drag if clicking buttons, badges or DVR controls
+    if (e.target.closest('button') || e.target.closest('#zoom-badge-' + camId) || e.target.closest('.cam-card-hover-toolbar') || e.target.closest('.cam-card-dvr-panel')) return;
+
+    const zState = getCamZoomState(camId);
+    if (zState.scale <= 1.0) return;
+
+    e.preventDefault();
+    zState.isDragging = true;
+    zState.startX = e.clientX - zState.x;
+    zState.startY = e.clientY - zState.y;
+    activePanCamId = camId;
+
+    const viewport = document.getElementById(`viewport-${camId}`);
+    if (viewport) viewport.style.cursor = 'grabbing';
+}
+
+function resetCameraZoom(camId) {
+    const zState = getCamZoomState(camId);
+    zState.scale = 1.0;
+    zState.x = 0;
+    zState.y = 0;
+    zState.isDragging = false;
+    activePanCamId = null;
+
+    const viewport = document.getElementById(`viewport-${camId}`);
+    const container = document.getElementById(`zoom-container-${camId}`);
+    const badge = document.getElementById(`zoom-badge-${camId}`);
+
+    if (container) {
+        container.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        container.style.transform = '';
+        setTimeout(() => {
+            if (container) container.style.transition = '';
+        }, 200);
+    }
+    if (viewport) {
+        viewport.style.cursor = 'default';
+    }
+    if (badge) {
+        badge.classList.add('hidden');
+        badge.classList.remove('flex');
+    }
+}
+
+function handleQuickZoomBtn(camId) {
+    const zState = getCamZoomState(camId);
+    let targetScale = 1.0;
+    if (zState.scale < 1.8) {
+        targetScale = 2.0;
+    } else if (zState.scale < 3.2) {
+        targetScale = 3.5;
+    } else {
+        targetScale = 1.0;
+    }
+
+    if (targetScale === 1.0) {
+        resetCameraZoom(camId);
+    } else {
+        const viewport = document.getElementById(`viewport-${camId}`);
+        const container = document.getElementById(`zoom-container-${camId}`);
+        const badge = document.getElementById(`zoom-badge-${camId}`);
+        const valSpan = document.getElementById(`zoom-val-${camId}`);
+        if (!viewport || !container) return;
+
+        zState.scale = targetScale;
+        zState.x = 0;
+        zState.y = 0;
+        container.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        container.style.transform = `translate3d(0px, 0px, 0px) scale(${targetScale.toFixed(2)})`;
+        viewport.style.cursor = 'grab';
+        if (badge && valSpan) {
+            valSpan.textContent = targetScale.toFixed(1) + 'x';
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+        }
+        setTimeout(() => {
+            if (container) container.style.transition = '';
+        }, 200);
+    }
+}
+
+// Window mouse listeners for smooth pan dragging across the entire viewport
+window.addEventListener('mousemove', (e) => {
+    if (!activePanCamId) return;
+    const zState = cameraZoomState[activePanCamId];
+    if (!zState || !zState.isDragging) return;
+
+    const viewport = document.getElementById(`viewport-${activePanCamId}`);
+    const container = document.getElementById(`zoom-container-${activePanCamId}`);
+    if (!viewport || !container) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const maxTranslateX = (rect.width * (zState.scale - 1)) / 2;
+    const maxTranslateY = (rect.height * (zState.scale - 1)) / 2;
+
+    let curX = e.clientX - zState.startX;
+    let curY = e.clientY - zState.startY;
+
+    zState.x = Math.max(-maxTranslateX, Math.min(maxTranslateX, curX));
+    zState.y = Math.max(-maxTranslateY, Math.min(maxTranslateY, curY));
+
+    container.style.transform = `translate3d(${zState.x.toFixed(2)}px, ${zState.y.toFixed(2)}px, 0px) scale(${zState.scale.toFixed(3)})`;
+});
+
+window.addEventListener('mouseup', () => {
+    if (!activePanCamId) return;
+    const zState = cameraZoomState[activePanCamId];
+    if (zState) {
+        zState.isDragging = false;
+        const viewport = document.getElementById(`viewport-${activePanCamId}`);
+        if (viewport) {
+            viewport.style.cursor = zState.scale > 1.0 ? 'grab' : 'default';
+        }
+    }
+    activePanCamId = null;
+});
 
 // ==========================================
 // 21. INITIALIZE ON DOM READY

@@ -151,7 +151,13 @@ mp0: /mnt/pve/hdd-cctv,mp=/opt/cctv-monitoring/static/recordings
    - Tidak boleh ada teks penting yang terpotong (`...`), terutama nomor IP, ping, nama kamera, atau indikator gerakan.
    - Tombol audio berdiri sendiri di header masing-masing kamera.
 3. **Penyimpanan Rekaman:** Folder rekaman video (`static/recordings`), foto kejadian (`static/events`), dan tangkapan snapshot (`static/snapshots`) diabaikan oleh `.gitignore` demi menjaga privasi dan kebersihan repositori Git.
-4. **Stabilitas Video:** Framerate stabil di angka hardware kamera (~12 - 15 FPS), ping < 20 ms.
+5. **Interactive Real-Time Digital Zoom & Pan (GPU-Accelerated):**
+   - **Scroll Mouse Zoom:** Scroll roda mouse ke atas untuk Zoom In (hingga 8.0x) dan ke bawah untuk Zoom Out kembali ke 1.0x secara real-time.
+   - **Smart Focal Point:** Pembesaran otomatis mengarah ke posisi kursor mouse berada di layar (bukan hanya membesar di tengah).
+   - **Drag & Pan:** Saat perbesaran > 1.0x, kursor berubah menjadi `grab`/`grabbing` dan pengguna dapat klik-tahan-geser video ke area mana saja.
+   - **Double-Click & Badge Reset:** Klik ganda pada video atau klik badge neon perbesaran (misal `🔍 2.5x [RESET]`) langsung mengembalikan tampilan ke 1.0x normal.
+   - **Mobile / Touch Gestures:** Mendukung pinch-to-zoom dengan 2 jari dan drag pan dengan 1 jari di tablet/smartphone.
+   - **100% Realtime Video:** Menggunakan akselerasi GPU (CSS3 3D transform `translate3d`, `scale`), aliran video MJPEG/RTSP tidak pernah terhenti atau reload.
 
 ---
 *Dokumen ini diperbarui secara berkala dan disinkronkan langsung ke GitHub Repository.*
