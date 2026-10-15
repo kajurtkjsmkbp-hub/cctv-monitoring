@@ -885,6 +885,93 @@ class CameraManager:
             del self.workers[cam_id]
         return True
 
+    def reorder_cameras(self, ordered_ids):
+        """Reorders the active camera grid sequence and persists to config."""
+        cam_dict = {c["id"]: c for c in self.cameras}
+        new_cameras = []
+        for cid in ordered_ids:
+            if cid in cam_dict:
+                new_cameras.append(cam_dict[cid])
+        for c in self.cameras:
+            if c["id"] not in ordered_ids:
+                new_cameras.append(c)
+        self.cameras = new_cameras
+        self.save_config()
+        return self.get_camera_list()
+
+    def get_playback_dates(self):
+        """Returns sorted list of unique YYYY-MM-DD dates that have recordings or events."""
+        dates = set()
+        for target_dir in [RECORDING_DIR, EVENT_DIR]:
+            if not os.path.exists(target_dir):
+                continue
+            try:
+                with os.scandir(target_dir) as entries:
+                    for entry in entries:
+                        if entry.is_file():
+                            fn = entry.name
+                            parts = fn.split('_')
+                            if len(parts) >= 3:
+                                date_str = parts[2]
+                                if len(date_str) == 8 and date_str.isdigit():
+                                    formatted = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+                                    dates.add(formatted)
+            except Exception:
+                pass
+        return sorted(list(dates), reverse=True)
+
+    def get_playback_items(self, date_query=None, cam_id=None, item_type=None):
+        """Returns sorted list of media items filtered by date, camera ID, and type."""
+        items = []
+        targets = []
+        if not item_type or item_type in ["recording", "all"]:
+            targets.append((RECORDING_DIR, "recording"))
+        if not item_type or item_type in ["event", "all"]:
+            targets.append((EVENT_DIR, "event"))
+
+        for target_dir, itype in targets:
+            if not os.path.exists(target_dir):
+                continue
+            try:
+                with os.scandir(target_dir) as entries:
+                    for entry in entries:
+                        if not entry.is_file():
+                            continue
+                        fn = entry.name
+                        parts = fn.split('_')
+                        if len(parts) < 4:
+                            continue
+                        c_id = parts[1]
+                        if cam_id and cam_id != "all" and c_id != cam_id:
+                            continue
+                        date_raw = parts[2]
+                        if len(date_raw) != 8 or not date_raw.isdigit():
+                            continue
+                        date_formatted = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
+                        if date_query and date_query != date_formatted:
+                            continue
+
+                        time_raw = parts[3].split('.')[0]
+                        time_formatted = f"{time_raw[:2]}:{time_raw[2:4]}:{time_raw[4:]}" if len(time_raw) >= 6 else time_raw
+                        st = entry.stat()
+                        url_base = "/static/recordings/" if itype == "recording" else "/static/events/"
+                        items.append({
+                            "type": itype,
+                            "cam_id": c_id,
+                            "filename": fn,
+                            "url": f"{url_base}{fn}",
+                            "date": date_formatted,
+                            "time": time_formatted,
+                            "size_bytes": st.st_size,
+                            "size_mb": round(st.st_size / (1024 * 1024), 2),
+                            "timestamp": st.st_mtime
+                        })
+            except Exception:
+                pass
+
+        items.sort(key=lambda x: x["timestamp"], reverse=True)
+        return items[:300]
+
     def get_gallery_count(self):
         """Ultra-fast cached gallery counter to avoid disk I/O lockup on repeated polling."""
         now = time.time()

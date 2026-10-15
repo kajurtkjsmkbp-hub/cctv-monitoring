@@ -20,6 +20,7 @@ from onvif_scanner import scan_network_onvif, get_camera_onvif_details
 from settings_manager import settings_mgr
 from face_recognition_manager import face_recognition_mgr
 from auth_manager import auth_mgr
+from system_health import get_system_metrics
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "khanza-vision-secret-key-cctv-2026-pro")
@@ -312,6 +313,16 @@ def delete_camera(cam_id):
     res = camera_manager.delete_camera(cam_id)
     return jsonify({"success": res})
 
+@app.route("/api/cameras/reorder", methods=["POST"])
+@require_auth(admin_only=True)
+def reorder_cameras_endpoint():
+    data = request.get_json() or {}
+    order = data.get("order", [])
+    if not isinstance(order, list):
+        return jsonify({"success": False, "error": "Order must be a list of camera IDs"}), 400
+    updated_cams = camera_manager.reorder_cameras(order)
+    return jsonify({"success": True, "cameras": updated_cams})
+
 @app.route("/api/cameras/<cam_id>/stream-quality", methods=["POST"])
 def toggle_quality(cam_id):
     allowed, err, _ = check_camera_access(cam_id)
@@ -500,6 +511,45 @@ def delete_gallery_item():
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
     return jsonify({"success": False, "error": "File not found"}), 404
+
+# ==========================================
+# PLAYBACK CALENDAR & TIMELINE ROUTES
+# ==========================================
+
+@app.route("/api/playback/dates", methods=["GET"])
+def get_playback_dates_endpoint():
+    user = get_current_user()
+    if not user or not auth_mgr.has_permission(user, "can_gallery"):
+        return jsonify({"dates": []})
+    dates = camera_manager.get_playback_dates()
+    return jsonify({"success": True, "dates": dates})
+
+@app.route("/api/playback/items", methods=["GET"])
+def get_playback_items_endpoint():
+    user = get_current_user()
+    if not user or not auth_mgr.has_permission(user, "can_gallery"):
+        return jsonify({"items": []})
+
+    date_q = request.args.get("date") # YYYY-MM-DD
+    cam_id = request.args.get("cam_id") # cam-1, cam-2, or 'all'
+    item_type = request.args.get("type", "all") # 'recording', 'event', 'all'
+
+    items = camera_manager.get_playback_items(date_query=date_q, cam_id=cam_id, item_type=item_type)
+
+    if user.get("role") != "admin":
+        allowed = user.get("allowed_cameras", [])
+        items = [it for it in items if (it.get("cam_id") in allowed or "*" in allowed)]
+
+    return jsonify({"success": True, "items": items})
+
+# ==========================================
+# SYSTEM HEALTH MONITORING
+# ==========================================
+
+@app.route("/api/system/health", methods=["GET"])
+def get_system_health_endpoint():
+    metrics = get_system_metrics()
+    return jsonify({"success": True, "health": metrics})
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats():

@@ -119,6 +119,20 @@ async function fetchCameras() {
         const data = await res.json();
         state.cameras = data.cameras || [];
         
+        // Apply saved camera order preference (Poin 5)
+        try {
+            const savedOrder = JSON.parse(localStorage.getItem('cctv_camera_order') || '[]');
+            if (Array.isArray(savedOrder) && savedOrder.length > 0) {
+                state.cameras.sort((a, b) => {
+                    let idxA = savedOrder.indexOf(a.id);
+                    let idxB = savedOrder.indexOf(b.id);
+                    if (idxA === -1) idxA = 999;
+                    if (idxB === -1) idxB = 999;
+                    return idxA - idxB;
+                });
+            }
+        } catch (e) {}
+
         // Auto adapt layout if user only has 1 camera permitted
         if (state.currentUser && state.currentUser.role !== 'admin' && state.cameras.length === 1) {
             state.selectedCameraId = state.cameras[0].id;
@@ -270,6 +284,8 @@ function createCameraCard(cam, index) {
     div.className = `glass-panel rounded-xl overflow-hidden flex flex-col transition-all duration-300 relative group border ${
         cam.motion ? 'motion-alert-active' : 'border-slate-800 hover:border-cyan-500/40'
     } ${colSpan}`;
+    div.setAttribute('data-cam-id', cam.id);
+    div.draggable = true;
 
     const isAdmin = state.currentUser ? (state.currentUser.role === 'admin') : false;
     const perms = (state.currentUser && state.currentUser.permissions) || {};
@@ -284,11 +300,24 @@ function createCameraCard(cam, index) {
     const statusDotClass = cam.connected ? 'bg-emerald-400 pulse-green' : 'bg-red-500 pulse-red';
 
     div.innerHTML = `
-        <!-- Card Header (2-Tier Clean Professional Layout) -->
-        <div class="cam-card-header px-3.5 py-2.5 bg-slate-900/95 border-b border-slate-800/90 flex flex-col gap-1.5 z-10">
-            <!-- Row 1: Status Dot, Nama Kamera, Badge Gerakan, dan Tombol Suara -->
+        <!-- Card Header (2-Tier Clean Professional Layout with Reorder Grips) -->
+        <div class="cam-card-header px-3.5 py-2 bg-slate-900/95 border-b border-slate-800/90 flex flex-col gap-1.5 z-10 select-none">
+            <!-- Row 1: Drag Handle, Panah Geser, Status Dot, Nama Kamera, Badge Gerakan, dan Tombol Suara -->
             <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2 min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                    <!-- Drag & Drop Reorder Controls (Poin 5) -->
+                    <div class="flex items-center gap-0.5 shrink-0 text-slate-500 mr-0.5">
+                        <span class="cursor-grab active:cursor-grabbing p-1 hover:text-cyan-400 transition" title="Tahan & Tarik (Drag & Drop) untuk menukar urutan kamera">
+                            <i data-lucide="grip-vertical" class="w-3.5 h-3.5 pointer-events-none"></i>
+                        </span>
+                        <button onclick="moveCameraOrder('${cam.id}', -1)" class="p-1 hover:text-cyan-300 text-slate-500 hover:bg-slate-800 rounded transition" title="Tukar posisi ke kiri / atas">
+                            <i data-lucide="chevron-left" class="w-3 h-3"></i>
+                        </button>
+                        <button onclick="moveCameraOrder('${cam.id}', 1)" class="p-1 hover:text-cyan-300 text-slate-500 hover:bg-slate-800 rounded transition" title="Tukar posisi ke kanan / bawah">
+                            <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+
                     <span class="w-2.5 h-2.5 rounded-full ${statusDotClass} shrink-0"></span>
                     <h4 class="font-tech font-bold text-sm text-slate-100 tracking-wide truncate cursor-pointer hover:text-cyan-300 transition" 
                         onclick="selectCameraForSingleView('${cam.id}')" title="Klik untuk fokus kamera: ${cam.name}">
@@ -503,6 +532,7 @@ function createCameraCard(cam, index) {
         </div>
     `;
 
+    setupCardDragAndDrop(div, cam.id);
     return div;
 }
 
@@ -3451,13 +3481,17 @@ function onAuthenticatedSuccess() {
     loadSettings();
     fetchCameras();
     fetchStorageStats();
+    pollSystemHealth();
     initPWA();
     checkArmingStatus();
     initCinemaKeyboardShortcuts();
     if (!state.statsInterval) {
         state.statsInterval = setInterval(pollStats, 2000);
     }
-    setInterval(fetchStorageStats, 15000);
+    if (!state.healthInterval) {
+        state.healthInterval = setInterval(pollSystemHealth, 8000);
+    }
+    setInterval(fetchStorageStats, 25000);
 }
 
 // ==========================================
@@ -4355,6 +4389,460 @@ function initAutoHideStandby() {
     });
 
     resetStandbyTimer();
+}
+
+// ==========================================
+// 23. CAMERA DRAG & DROP AND REORDER (POIN 5)
+// ==========================================
+let draggedCardCamId = null;
+
+function setupCardDragAndDrop(cardEl, camId) {
+    if (!cardEl) return;
+
+    cardEl.addEventListener('dragstart', (e) => {
+        draggedCardCamId = camId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', camId);
+        cardEl.classList.add('opacity-50', 'ring-2', 'ring-cyan-400');
+    });
+
+    cardEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    });
+
+    cardEl.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (draggedCardCamId && draggedCardCamId !== camId) {
+            cardEl.classList.add('border-cyan-400', 'bg-cyan-950/20');
+        }
+    });
+
+    cardEl.addEventListener('dragleave', () => {
+        cardEl.classList.remove('border-cyan-400', 'bg-cyan-950/20');
+    });
+
+    cardEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cardEl.classList.remove('border-cyan-400', 'bg-cyan-950/20', 'opacity-50', 'ring-2', 'ring-cyan-400');
+        const sourceId = draggedCardCamId || e.dataTransfer.getData('text/plain');
+        if (sourceId && sourceId !== camId) {
+            swapCameraOrder(sourceId, camId);
+        }
+        draggedCardCamId = null;
+    });
+
+    cardEl.addEventListener('dragend', () => {
+        cardEl.classList.remove('opacity-50', 'ring-2', 'ring-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+        draggedCardCamId = null;
+    });
+}
+
+function swapCameraOrder(sourceCamId, targetCamId) {
+    const srcIdx = state.cameras.findIndex(c => c.id === sourceCamId);
+    const tgtIdx = state.cameras.findIndex(c => c.id === targetCamId);
+    if (srcIdx === -1 || tgtIdx === -1 || srcIdx === tgtIdx) return;
+
+    const [movedCam] = state.cameras.splice(srcIdx, 1);
+    state.cameras.splice(tgtIdx, 0, movedCam);
+
+    applyAndSaveCameraOrder();
+}
+
+function moveCameraOrder(camId, direction) {
+    const idx = state.cameras.findIndex(c => c.id === camId);
+    if (idx === -1) return;
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= state.cameras.length) return;
+
+    const [movedCam] = state.cameras.splice(idx, 1);
+    state.cameras.splice(newIdx, 0, movedCam);
+
+    applyAndSaveCameraOrder();
+}
+
+function applyAndSaveCameraOrder() {
+    const newOrderIds = state.cameras.map(c => c.id);
+    try {
+        localStorage.setItem('cctv_camera_order', JSON.stringify(newOrderIds));
+    } catch (e) {}
+
+    // Re-render grid with new sequence
+    const gridContainer = document.getElementById('camera-grid');
+    if (gridContainer) {
+        newOrderIds.forEach(cid => {
+            const card = document.getElementById(`card-${cid}`);
+            if (card) gridContainer.appendChild(card);
+        });
+    }
+
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+
+    // Sync to backend if admin
+    if (state.currentUser && state.currentUser.role === 'admin') {
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.authToken) headers['X-Auth-Token'] = state.authToken;
+        fetch('/api/cameras/reorder', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ order: newOrderIds })
+        }).catch(() => {});
+    }
+}
+
+// ==========================================
+// 24. SYSTEM HEALTH MONITOR MANAGER (POIN 4)
+// ==========================================
+let currentHealthMetrics = null;
+
+async function pollSystemHealth() {
+    try {
+        const headers = {};
+        if (state.authToken) headers['X-Auth-Token'] = state.authToken;
+        const res = await fetch('/api/system/health', { headers });
+        const data = await res.json();
+        if (!data || !data.health) return;
+        currentHealthMetrics = data.health;
+
+        const h = data.health;
+        const cpuPill = document.getElementById('health-pill-cpu');
+        const ramPill = document.getElementById('health-pill-ram');
+        const icon = document.getElementById('health-status-icon');
+
+        if (cpuPill) {
+            cpuPill.textContent = `CPU ${h.cpu_percent}%`;
+            if (h.cpu_percent > 80) cpuPill.className = 'text-red-400 font-bold animate-pulse';
+            else if (h.cpu_percent > 60) cpuPill.className = 'text-amber-400 font-semibold';
+            else cpuPill.className = 'text-emerald-400';
+        }
+
+        if (ramPill) {
+            ramPill.textContent = `RAM ${h.ram_percent}%`;
+            if (h.ram_percent > 85) ramPill.className = 'text-red-400 font-bold hidden md:inline animate-pulse';
+            else if (h.ram_percent > 70) ramPill.className = 'text-amber-400 font-semibold hidden md:inline';
+            else ramPill.className = 'text-cyan-400 hidden md:inline';
+        }
+
+        if (icon) {
+            if (h.cpu_percent > 85 || h.ram_percent > 85 || h.disk_percent > 90) {
+                icon.className = 'w-3.5 h-3.5 text-red-500 animate-ping';
+            } else {
+                icon.className = 'w-3.5 h-3.5 text-emerald-400';
+            }
+        }
+    } catch (e) {}
+}
+
+function openSystemHealthModal() {
+    const modal = document.getElementById('system-health-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    renderSystemHealthData();
+    pollSystemHealthNow();
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function closeSystemHealthModal() {
+    const modal = document.getElementById('system-health-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function pollSystemHealthNow() {
+    await pollSystemHealth();
+    renderSystemHealthData();
+}
+
+function renderSystemHealthData() {
+    if (!currentHealthMetrics) return;
+    const h = currentHealthMetrics;
+
+    const platEl = document.getElementById('health-modal-platform');
+    if (platEl) platEl.textContent = `Node: ${h.platform} • Uptime: ${h.uptime}`;
+
+    // CPU
+    const cpuVal = document.getElementById('health-cpu-val');
+    const cpuBar = document.getElementById('health-cpu-bar');
+    const loadVal = document.getElementById('health-load-val');
+    if (cpuVal) cpuVal.textContent = `${h.cpu_percent}%`;
+    if (cpuBar) {
+        cpuBar.style.width = `${Math.min(100, h.cpu_percent)}%`;
+        cpuBar.className = h.cpu_percent > 80 ? 'bg-red-500 h-full rounded-full transition-all duration-500' : (h.cpu_percent > 60 ? 'bg-amber-500 h-full rounded-full transition-all duration-500' : 'bg-emerald-500 h-full rounded-full transition-all duration-500');
+    }
+    if (loadVal) loadVal.textContent = `Load Avg (1m, 5m, 15m): ${h.load_avg.join(', ')}`;
+
+    // RAM
+    const ramVal = document.getElementById('health-ram-val');
+    const ramBar = document.getElementById('health-ram-bar');
+    const ramDetail = document.getElementById('health-ram-detail');
+    if (ramVal) ramVal.textContent = `${h.ram_percent}%`;
+    if (ramBar) {
+        ramBar.style.width = `${Math.min(100, h.ram_percent)}%`;
+        ramBar.className = h.ram_percent > 85 ? 'bg-red-500 h-full rounded-full transition-all duration-500' : (h.ram_percent > 70 ? 'bg-amber-500 h-full rounded-full transition-all duration-500' : 'bg-cyan-500 h-full rounded-full transition-all duration-500');
+    }
+    if (ramDetail) ramDetail.textContent = `${h.ram_used_mb} MB / ${h.ram_total_mb} MB terpakai`;
+
+    // Disk
+    const diskVal = document.getElementById('health-disk-val');
+    const diskBar = document.getElementById('health-disk-bar');
+    const diskDetail = document.getElementById('health-disk-detail');
+    if (diskVal) diskVal.textContent = `${h.disk_percent}%`;
+    if (diskBar) {
+        diskBar.style.width = `${Math.min(100, h.disk_percent)}%`;
+        diskBar.className = h.disk_percent > 85 ? 'bg-red-500 h-full rounded-full transition-all duration-500' : (h.disk_percent > 70 ? 'bg-amber-500 h-full rounded-full transition-all duration-500' : 'bg-amber-500 h-full rounded-full transition-all duration-500');
+    }
+    if (diskDetail) diskDetail.textContent = `${h.disk_used_gb} GB / ${h.disk_total_gb} GB (Sisa: ${h.disk_free_gb} GB)`;
+
+    // Uptime
+    const uptimeVal = document.getElementById('health-uptime-val');
+    if (uptimeVal) uptimeVal.textContent = h.uptime;
+
+    // Online cameras
+    const onlineEl = document.getElementById('health-cams-online');
+    const onlineCount = state.cameras.filter(c => c.connected).length;
+    if (onlineEl) onlineEl.textContent = `${onlineCount}/${state.cameras.length} Online`;
+
+    // Ping camera list
+    const pingList = document.getElementById('health-cameras-ping-list');
+    if (pingList) {
+        pingList.innerHTML = state.cameras.map(c => `
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <span class="truncate text-slate-300 font-bold">${c.name}</span>
+                <span class="${c.connected ? 'text-emerald-400' : 'text-red-400'} font-bold">
+                    ${c.connected ? (c.ping_ms ? c.ping_ms + 'ms' : '0.9ms') : 'OFFLINE'}
+                </span>
+            </div>
+        `).join('');
+    }
+}
+
+// ==========================================
+// 25. NVR TIMELINE PLAYBACK CALENDAR (POIN 3)
+// ==========================================
+let currentPlaybackItems = [];
+let activePlaybackIndex = -1;
+
+async function openPlaybackModal() {
+    const modal = document.getElementById('playback-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Populate camera filter dropdown
+    const camSelect = document.getElementById('playback-camera-filter');
+    if (camSelect) {
+        camSelect.innerHTML = `<option value="all">Semua Kamera (${state.cameras.length})</option>` +
+            state.cameras.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    }
+
+    // Load available dates
+    await loadPlaybackDates();
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function closePlaybackModal() {
+    const modal = document.getElementById('playback-modal');
+    const videoEl = document.getElementById('playback-video-element');
+    if (videoEl) {
+        videoEl.pause();
+        videoEl.src = '';
+    }
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function loadPlaybackDates() {
+    const dateInput = document.getElementById('playback-date-picker');
+    const today = new Date().toISOString().split('T')[0];
+    if (dateInput && !dateInput.value) {
+        dateInput.value = today;
+    }
+
+    try {
+        const headers = {};
+        if (state.authToken) headers['X-Auth-Token'] = state.authToken;
+        const res = await fetch('/api/playback/dates', { headers });
+        const data = await res.json();
+        if (data.dates && data.dates.length > 0 && dateInput) {
+            if (!data.dates.includes(dateInput.value)) {
+                dateInput.value = data.dates[0];
+            }
+        }
+    } catch (e) {}
+
+    await fetchPlaybackTimeline();
+}
+
+async function fetchPlaybackTimeline() {
+    const dateInput = document.getElementById('playback-date-picker');
+    const camSelect = document.getElementById('playback-camera-filter');
+    const typeSelect = document.getElementById('playback-type-filter');
+    const statusText = document.getElementById('playback-status-text');
+    const countBadge = document.getElementById('playback-item-count');
+
+    const dateVal = dateInput ? dateInput.value : '';
+    const camVal = camSelect ? camSelect.value : 'all';
+    const typeVal = typeSelect ? typeSelect.value : 'all';
+
+    if (statusText) statusText.textContent = 'Memuat rekaman...';
+
+    try {
+        const headers = {};
+        if (state.authToken) headers['X-Auth-Token'] = state.authToken;
+        const res = await fetch(`/api/playback/items?date=${encodeURIComponent(dateVal)}&cam_id=${encodeURIComponent(camVal)}&type=${encodeURIComponent(typeVal)}`, { headers });
+        const data = await res.json();
+        currentPlaybackItems = data.items || [];
+
+        if (countBadge) countBadge.textContent = `${currentPlaybackItems.length} File`;
+        if (statusText) statusText.textContent = `Ditemukan ${currentPlaybackItems.length} rekaman`;
+
+        renderPlaybackTimelineList();
+
+        if (currentPlaybackItems.length > 0) {
+            selectPlaybackItem(0);
+        } else {
+            resetPlaybackPlayer();
+        }
+    } catch (e) {
+        if (statusText) statusText.textContent = 'Gagal memuat data rekaman';
+    }
+}
+
+function renderPlaybackTimelineList() {
+    const listContainer = document.getElementById('playback-items-list');
+    if (!listContainer) return;
+
+    if (currentPlaybackItems.length === 0) {
+        listContainer.innerHTML = `
+            <div class="py-12 text-center text-slate-500 font-mono text-xs">
+                <i data-lucide="video-off" class="w-8 h-8 mx-auto mb-2 opacity-30"></i>
+                <p>Tidak ada rekaman pada tanggal/filter ini.</p>
+                <p class="text-[10px] text-slate-600 mt-1">Coba pilih tanggal atau kamera lain.</p>
+            </div>
+        `;
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+        return;
+    }
+
+    listContainer.innerHTML = currentPlaybackItems.map((item, idx) => {
+        const cam = state.cameras.find(c => c.id === item.cam_id);
+        const camName = cam ? cam.name : item.cam_id;
+        const isRec = item.type === 'recording';
+        const badgeBg = isRec ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+        const badgeText = isRec ? 'VIDEO' : 'EVENT';
+        const isActive = idx === activePlaybackIndex;
+
+        return `
+            <div onclick="selectPlaybackItem(${idx})" 
+                 class="p-2.5 rounded-xl border transition cursor-pointer font-mono text-xs flex items-center justify-between gap-2 ${
+                     isActive ? 'bg-indigo-950/40 border-indigo-500/60 shadow-lg shadow-indigo-500/10' : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                 }">
+                <div class="flex items-center gap-2.5 truncate">
+                    <span class="w-2 h-2 rounded-full ${isRec ? 'bg-red-500' : 'bg-amber-400'} shrink-0"></span>
+                    <div class="truncate">
+                        <div class="flex items-center gap-1.5 font-bold text-slate-200">
+                            <span class="text-indigo-300">${item.time}</span>
+                            <span class="text-[9px] px-1.5 py-0.2 rounded border ${badgeBg}">${badgeText}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 truncate mt-0.5">${camName}</p>
+                    </div>
+                </div>
+                <div class="text-right shrink-0 text-[10px] text-slate-500">
+                    <span>${item.size_mb} MB</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function selectPlaybackItem(index) {
+    if (index < 0 || index >= currentPlaybackItems.length) return;
+    activePlaybackIndex = index;
+    const item = currentPlaybackItems[index];
+
+    renderPlaybackTimelineList();
+
+    const videoEl = document.getElementById('playback-video-element');
+    const imgEl = document.getElementById('playback-image-element');
+    const emptyState = document.getElementById('playback-empty-state');
+    const titleEl = document.getElementById('playback-active-title');
+    const badgeEl = document.getElementById('playback-active-badge');
+    const downloadBtn = document.getElementById('playback-btn-download');
+
+    if (emptyState) emptyState.classList.add('hidden');
+
+    const cam = state.cameras.find(c => c.id === item.cam_id);
+    const camName = cam ? cam.name : item.cam_id;
+
+    if (titleEl) titleEl.textContent = `${camName} • ${item.date} ${item.time} (${item.size_mb} MB)`;
+    if (badgeEl) {
+        badgeEl.textContent = item.type.toUpperCase();
+        badgeEl.className = item.type === 'recording' ? 'px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30 text-[10px]' : 'px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px]';
+    }
+    if (downloadBtn) {
+        downloadBtn.href = item.url;
+        downloadBtn.download = item.filename;
+    }
+
+    if (item.type === 'recording') {
+        if (imgEl) imgEl.classList.add('hidden');
+        if (videoEl) {
+            videoEl.classList.remove('hidden');
+            videoEl.src = item.url;
+            videoEl.load();
+            videoEl.play().catch(() => {});
+        }
+    } else {
+        if (videoEl) {
+            videoEl.pause();
+            videoEl.classList.add('hidden');
+        }
+        if (imgEl) {
+            imgEl.classList.remove('hidden');
+            imgEl.src = item.url;
+        }
+    }
+}
+
+function resetPlaybackPlayer() {
+    activePlaybackIndex = -1;
+    const videoEl = document.getElementById('playback-video-element');
+    const imgEl = document.getElementById('playback-image-element');
+    const emptyState = document.getElementById('playback-empty-state');
+    const titleEl = document.getElementById('playback-active-title');
+
+    if (videoEl) {
+        videoEl.pause();
+        videoEl.src = '';
+        videoEl.classList.add('hidden');
+    }
+    if (imgEl) {
+        imgEl.src = '';
+        imgEl.classList.add('hidden');
+    }
+    if (emptyState) emptyState.classList.remove('hidden');
+    if (titleEl) titleEl.textContent = 'Belum ada file dipilih';
+}
+
+function setPlaybackSpeed(spd) {
+    const videoEl = document.getElementById('playback-video-element');
+    if (videoEl) {
+        videoEl.playbackRate = spd;
+    }
+    document.querySelectorAll('.playback-spd-btn').forEach(btn => {
+        if (parseFloat(btn.getAttribute('data-spd')) === spd) {
+            btn.className = 'playback-spd-btn px-2 py-1 rounded bg-indigo-600 text-white font-bold';
+        } else {
+            btn.className = 'playback-spd-btn px-2 py-1 rounded text-slate-400 hover:text-white';
+        }
+    });
 }
 
 // ==========================================

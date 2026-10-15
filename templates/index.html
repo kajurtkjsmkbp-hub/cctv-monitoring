@@ -133,6 +133,20 @@
                     <span class="hidden sm:inline">Galeri</span>
                 </button>
 
+                <!-- Action: Playback Kalender & Timeline NVR (Poin 3) -->
+                <button onclick="openPlaybackModal()" id="btn-playback" class="px-3 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/35 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Kalender & Timeline Pemutar Rekaman CCTV (NVR Playback)">
+                    <i data-lucide="calendar" class="w-4 h-4 text-indigo-400"></i>
+                    <span class="hidden sm:inline">Playback</span>
+                </button>
+
+                <!-- Action: Status Kesehatan Server Proxmox (Poin 4) -->
+                <button onclick="openSystemHealthModal()" id="btn-system-health" class="px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-700/80 text-xs font-semibold flex items-center gap-1.5 transition font-mono" title="Status Kesehatan Server Proxmox (CPU, RAM, Harddisk, Uptime)">
+                    <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400" id="health-status-icon"></i>
+                    <span id="health-pill-cpu" class="text-emerald-400">CPU --%</span>
+                    <span class="text-slate-600 hidden md:inline">|</span>
+                    <span id="health-pill-ram" class="text-cyan-400 hidden md:inline">RAM --%</span>
+                </button>
+
                 <!-- Action: Tambah Kamera -->
                 <button onclick="openAddCameraModal()" id="btn-add-camera" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
@@ -1294,6 +1308,221 @@
         </div>
     </div>
 
+    <!-- 12. NVR TIMELINE PLAYBACK MODAL (POIN 3) -->
+    <div id="playback-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-3 sm:p-5">
+        <div class="glass-panel rounded-2xl w-full max-w-5xl h-[92vh] flex flex-col border border-indigo-500/30 bg-slate-950/95 shadow-2xl overflow-hidden animate-scale-up">
+            <!-- Modal Header -->
+            <div class="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-b border-indigo-500/20 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
+                        <i data-lucide="calendar" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-tech font-bold text-base text-slate-100 flex items-center gap-2">
+                            <span>Kalender & Timeline Rekaman</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">NVR PLAYBACK</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-400 font-mono">Pilih tanggal dan jam kejadian untuk memutar rekaman video atau foto snapshot</p>
+                    </div>
+                </div>
+                <button onclick="closePlaybackModal()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Filter Bar: Tanggal, Kamera, Tipe -->
+            <div class="px-5 py-3 bg-slate-900/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <!-- Date Input -->
+                    <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5">
+                        <i data-lucide="calendar-days" class="w-4 h-4 text-indigo-400"></i>
+                        <input type="date" id="playback-date-picker" onchange="fetchPlaybackTimeline()" 
+                               class="bg-transparent text-xs text-slate-200 font-mono focus:outline-none cursor-pointer">
+                    </div>
+
+                    <!-- Camera Select -->
+                    <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5">
+                        <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i>
+                        <select id="playback-camera-filter" onchange="fetchPlaybackTimeline()" 
+                                class="bg-transparent text-xs text-slate-200 font-mono focus:outline-none cursor-pointer pr-2">
+                            <option value="all">Semua Kamera</option>
+                        </select>
+                    </div>
+
+                    <!-- Type Filter -->
+                    <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5">
+                        <i data-lucide="filter" class="w-4 h-4 text-amber-400"></i>
+                        <select id="playback-type-filter" onchange="fetchPlaybackTimeline()" 
+                                class="bg-transparent text-xs text-slate-200 font-mono focus:outline-none cursor-pointer pr-2">
+                            <option value="all">Semua (Video & Foto)</option>
+                            <option value="recording">Hanya Rekaman Video (.mp4 / .avi)</option>
+                            <option value="event">Hanya Snapshot Kejadian</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span id="playback-status-text" class="text-xs font-mono text-slate-400">Memuat data...</span>
+                    <button onclick="fetchPlaybackTimeline()" class="p-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1" title="Segarkan Data">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Content: Player (Kiri) & Timeline List (Kanan) -->
+            <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+                <!-- Left: Video & Media Player Stage -->
+                <div class="flex-1 bg-black/90 p-4 flex flex-col items-center justify-center relative overflow-hidden border-b md:border-b-0 md:border-r border-slate-800">
+                    <!-- Media Canvas / Video Player -->
+                    <div class="w-full flex-1 flex items-center justify-center relative min-h-[220px]" id="playback-viewport-container">
+                        <video id="playback-video-element" class="max-w-full max-h-full rounded-lg shadow-2xl hidden" controls autoplay playsinline></video>
+                        <img id="playback-image-element" class="max-w-full max-h-full rounded-lg shadow-2xl object-contain hidden" src="" alt="Snapshot Playback">
+                        
+                        <!-- Empty State -->
+                        <div id="playback-empty-state" class="text-center p-8 text-slate-500">
+                            <i data-lucide="play-circle" class="w-16 h-16 mx-auto mb-3 opacity-40 text-indigo-400"></i>
+                            <p class="font-tech text-base text-slate-300">Pilih Salah Satu Rekaman di Timeline</p>
+                            <p class="text-xs text-slate-500 mt-1 font-mono">Daftar rekaman yang cocok akan tampil di sebelah kanan</p>
+                        </div>
+                    </div>
+
+                    <!-- Player Metadata & Speed Control Bar -->
+                    <div id="playback-controls-bar" class="w-full mt-3 p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl flex items-center justify-between gap-3 text-xs font-mono">
+                        <div class="flex items-center gap-2 truncate">
+                            <span id="playback-active-badge" class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px]">MEDIA</span>
+                            <span id="playback-active-title" class="text-slate-300 truncate">Belum ada file dipilih</span>
+                        </div>
+
+                        <!-- Speed Controls (0.5x, 1x, 2x, 4x) & Download -->
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <div class="flex items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800">
+                                <button onclick="setPlaybackSpeed(0.5)" class="playback-spd-btn px-2 py-1 rounded text-slate-400 hover:text-white" data-spd="0.5">0.5x</button>
+                                <button onclick="setPlaybackSpeed(1.0)" class="playback-spd-btn px-2 py-1 rounded bg-indigo-600 text-white font-bold" data-spd="1.0">1x</button>
+                                <button onclick="setPlaybackSpeed(2.0)" class="playback-spd-btn px-2 py-1 rounded text-slate-400 hover:text-white" data-spd="2.0">2x</button>
+                                <button onclick="setPlaybackSpeed(4.0)" class="playback-spd-btn px-2 py-1 rounded text-slate-400 hover:text-white" data-spd="4.0">4x</button>
+                            </div>
+                            <a id="playback-btn-download" href="#" download class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition" title="Unduh File Rekaman Ini">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Timeline Hour-by-Hour List -->
+                <div class="w-full md:w-80 lg:w-96 bg-slate-950 flex flex-col h-full border-t md:border-t-0 border-slate-800">
+                    <div class="px-4 py-2.5 bg-slate-900/60 border-b border-slate-800/80 flex items-center justify-between">
+                        <span class="text-xs font-bold font-tech text-slate-300 flex items-center gap-1.5">
+                            <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-400"></i>
+                            <span>Daftar Waktu Kejadian</span>
+                        </span>
+                        <span id="playback-item-count" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">0 File</span>
+                    </div>
+
+                    <!-- Scrollable List of Items -->
+                    <div id="playback-items-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+                        <!-- Items rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 13. SYSTEM HEALTH MONITOR MODAL (POIN 4) -->
+    <div id="system-health-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-xl p-6 border shadow-2xl relative border-slate-700 bg-slate-950/95 animate-scale-up">
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-tech font-bold text-base text-slate-100 flex items-center gap-2">
+                            <span>Status Kesehatan Server & Jaringan</span>
+                            <span id="health-modal-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">ONLINE</span>
+                        </h3>
+                        <p id="health-modal-platform" class="text-[11px] text-slate-400 font-mono">Memuat telemetri hardware...</p>
+                    </div>
+                </div>
+                <button onclick="closeSystemHealthModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Health Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-5 font-mono">
+                <!-- CPU Usage -->
+                <div class="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span class="flex items-center gap-1.5"><i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i> Beban CPU</span>
+                        <span id="health-cpu-val" class="font-bold text-emerald-400 text-sm">--%</span>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div id="health-cpu-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <span id="health-load-val" class="text-[10px] text-slate-500 mt-2">Load Avg: --, --, --</span>
+                </div>
+
+                <!-- RAM Usage -->
+                <div class="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span class="flex items-center gap-1.5"><i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i> Memori RAM</span>
+                        <span id="health-ram-val" class="font-bold text-cyan-400 text-sm">--%</span>
+                    </div>
+                    <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div id="health-ram-bar" class="bg-cyan-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <span id="health-ram-detail" class="text-[10px] text-slate-500 mt-2">-- MB / -- MB</span>
+                </div>
+
+                <!-- Disk Storage -->
+                <div class="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span class="flex items-center gap-1.5"><i data-lucide="hard-drive" class="w-4 h-4 text-amber-400"></i> Harddisk Server</span>
+                        <span id="health-disk-val" class="font-bold text-amber-400 text-sm">--%</span>
+                    </div>
+                    <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div id="health-disk-bar" class="bg-amber-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <span id="health-disk-detail" class="text-[10px] text-slate-500 mt-2">-- GB / -- GB (Sisa: -- GB)</span>
+                </div>
+
+                <!-- Server Uptime & Connectivity -->
+                <div class="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span class="flex items-center gap-1.5"><i data-lucide="clock" class="w-4 h-4 text-purple-400"></i> Waktu Menyala</span>
+                        <span id="health-uptime-val" class="font-bold text-purple-400 text-xs">--</span>
+                    </div>
+                    <div class="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-800 pt-2">
+                        <span>Status Jaringan CCTV:</span>
+                        <span id="health-cams-online" class="text-emerald-400 font-bold">4/4 Online</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ping Status 4 Kamera -->
+            <div class="p-3.5 bg-slate-950 rounded-xl border border-slate-800 mb-5">
+                <h4 class="text-xs font-tech font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+                    <i data-lucide="wifi" class="w-3.5 h-3.5 text-cyan-400"></i> Latensi Jaringan 4 Kamera CCTV Fisik:
+                </h4>
+                <div id="health-cameras-ping-list" class="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+                <button onclick="pollSystemHealthNow()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Segarkan Sekarang
+                </button>
+                <button onclick="closeSystemHealthModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 11. CYBER CONFIRMATION & DIALOG MODAL -->
     <div id="confirm-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 transition-all duration-200">
         <div class="glass-panel rounded-2xl w-full max-w-sm p-6 border shadow-2xl relative text-center border-slate-700 bg-slate-950/95 transition-all duration-200" id="confirm-modal-box">
@@ -1324,6 +1553,6 @@
     </div>
 
     <!-- Application JS -->
-    <script src="/static/js/app.js?v=4.8"></script>
+    <script src="/static/js/app.js?v=4.9"></script>
 </body>
 </html>

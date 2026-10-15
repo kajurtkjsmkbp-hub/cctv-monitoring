@@ -8,7 +8,7 @@
 ## 📌 1. Identitas & Repositori Proyek
 
 * **Nama Sistem:** Khanza.NET Vision • ONVIF CCTV Command Station
-* **Versi:** v2.6 PRO (High Stability & Low Disk I/O Release)
+* **Versi:** v2.7 PRO (NVR Playback, Health Telemetry & Camera Reorder Release)
 * **Tipe Sistem:** Video Management System (VMS) berbasis Web, Single Page Application (SPA), ultra low-latency RTSP proxying, AI Motion & Biometric Recognition, Timeshift DVR, dan PTZ Command.
 * **GitHub Repository:** [https://github.com/kajurtkjsmkbp-hub/cctv-monitoring.git](https://github.com/kajurtkjsmkbp-hub/cctv-monitoring.git)
 * **Branch Utama:** `main`
@@ -180,6 +180,18 @@ mp0: /mnt/pve/hdd-cctv,mp=/opt/cctv-monitoring/static/recordings
    - **Kursor Hilang:** Kursor mouse otomatis disembunyikan (`cursor: none`) saat standby agar tampilan layar layaknya monitor CCTV command center profesional.
    - **Bangun Seketika:** Gerakan mouse sekecil apa pun (`mousemove`), klik, atau sentuhan layar langsung memunculkan kembali semua kontrol dan bar.
    - **Saklar Pengendali:** Tombol `[ 👁️ Auto-Hide ON/OFF ]` di bar atas untuk mengaktifkan/menonaktifkan mode ini sesuai kebutuhan.
+7. **Kalender & Timeline Pemutar Rekaman (NVR Playback - Poin 3):**
+   - **Date Picker & Tanggal Berisi Rekaman:** Memilih tanggal via kalender interaktif (`/api/playback/dates`) untuk menemukan rekaman video atau snapshot kejadian.
+   - **Filter Multi-Kamera & Tipe:** Memfilter rekaman berdasarkan kamera tertentu (CAM 01 - 04) serta tipe rekaman (Video Klip `.mp4`/`.avi` atau Snapshot Kejadian).
+   - **Video Player Terintegrasi & Speed Control:** Memutar rekaman langsung di browser dengan kontrol kecepatan (0.5x, 1x, 2x, 4x) dan tombol unduh instan.
+8. **Dashboard Mini Kesehatan Server & Jaringan (System Health - Poin 4):**
+   - **Live Telemetri Proxmox & Host:** Menampilkan beban CPU (%), Memori RAM (MB / %), Kapasitas Harddisk (GB / %), Uptime, dan Load Average di header bar secara real-time.
+   - **Indikator Warna Cerdas:** Hijau (aman < 60%), Kuning (peringatan 60-80%), dan Merah berkedip (kritis > 80%).
+   - **Dukungan Hybrid Linux/Windows:** Menggunakan `system_health.py` dengan deteksi native Linux `/proc/stat`, `/proc/meminfo`, `/proc/uptime`, serta modul `psutil`.
+9. **Kustomisasi Urutan Kamera di Grid (Drag & Drop Reorder - Poin 5):**
+   - **Drag & Drop HTML5:** Pengguna dapat menahan handle grip `⠿` pada header kamera dan menggesernya ke posisi kamera lain untuk menukar urutan visual.
+   - **Panah Cepat Mobile/Sentuh:** Tersedia tombol panah `◀` dan `▶` di setiap header kamera untuk memudahkan pengguna ponsel atau tablet tanpa mouse.
+   - **Sinkronisasi Dua Arah:** Urutan baru tersimpan di `localStorage` per peramban dan otomatis disimpan ke server (`/api/cameras/reorder` / `cameras.json`).
 
 ---
 *Dokumen ini diperbarui secara berkala dan disinkronkan langsung ke GitHub Repository.*
