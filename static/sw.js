@@ -1,9 +1,9 @@
 // Aegis Vision PWA Service Worker
-const CACHE_NAME = 'aegis-cctv-v4.6';
+const CACHE_NAME = 'aegis-cctv-v4.7';
 const STATIC_ASSETS = [
   '/',
-  '/static/css/style.css?v=4.4',
-  '/static/js/app.js?v=4.6',
+  '/static/css/style.css?v=4.5',
+  '/static/js/app.js?v=4.7',
   '/manifest.json'
 ];
 

@@ -27,7 +27,7 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Custom Style -->
-    <link rel="stylesheet" href="/static/css/style.css?v=4.4">
+    <link rel="stylesheet" href="/static/css/style.css?v=4.5">
 </head>
 <body class="cyber-bg min-h-screen flex flex-col text-slate-100 select-none">
 
@@ -73,14 +73,14 @@
             <div id="mobile-toolbar-scroll" class="flex items-center gap-2 flex-wrap">
                 <!-- Layout Buttons -->
                 <div class="flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-800">
-                    <button onclick="setLayout('grid-1x1')" id="btn-grid-1x1" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="1 Kamera (Single View)">
-                        <i data-lucide="square" class="w-4 h-4"></i>
+                    <button onclick="setLayout('grid-1x1')" id="btn-grid-1x1" class="layout-btn p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition focus:outline-none" title="1 Kamera (Single View)">
+                        <i data-lucide="square" class="w-4 h-4 pointer-events-none"></i>
                     </button>
-                    <button onclick="setLayout('grid-2x2')" id="btn-grid-2x2" class="layout-btn p-1.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" title="2x2 Grid (Quad View / 4 Layar)">
-                        <i data-lucide="grid-2x2" class="w-4 h-4"></i>
+                    <button onclick="setLayout('grid-2x2')" id="btn-grid-2x2" class="layout-btn p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition focus:outline-none" title="2x2 Grid (Quad View / 4 Layar)">
+                        <i data-lucide="grid-2x2" class="w-4 h-4 pointer-events-none"></i>
                     </button>
-                    <button onclick="setLayout('grid-3x2')" id="btn-grid-3x2" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="6 Kamera (3x2 Grid / 6 Layar)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                    <button onclick="setLayout('grid-3x2')" id="btn-grid-3x2" class="layout-btn p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition focus:outline-none" title="6 Kamera (3x2 Grid / 6 Layar)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 pointer-events-none">
                             <rect width="5" height="7" x="3" y="3.5" rx="1"/>
                             <rect width="5" height="7" x="9.5" y="3.5" rx="1"/>
                             <rect width="5" height="7" x="16" y="3.5" rx="1"/>
@@ -89,11 +89,11 @@
                             <rect width="5" height="7" x="16" y="13.5" rx="1"/>
                         </svg>
                     </button>
-                    <button onclick="setLayout('grid-3x3')" id="btn-grid-3x3" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="3x3 Grid (9 Layar)">
-                        <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                    <button onclick="setLayout('grid-3x3')" id="btn-grid-3x3" class="layout-btn p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition focus:outline-none" title="Compact Grid (4 Kolom / 9 Layar)">
+                        <i data-lucide="grid-3x3" class="w-4 h-4 pointer-events-none"></i>
                     </button>
-                    <button onclick="setLayout('grid-focus')" id="btn-grid-focus" class="layout-btn p-1.5 rounded hover:bg-slate-800 text-slate-400" title="Focus View (1 Utama + Samping)">
-                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                    <button onclick="setLayout('grid-focus')" id="btn-grid-focus" class="layout-btn p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition focus:outline-none" title="Focus View (1 Utama + Samping)">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 pointer-events-none"></i>
                     </button>
                 </div>
 
@@ -1327,6 +1327,6 @@
     </div>
 
     <!-- Application JS -->
-    <script src="/static/js/app.js?v=4.6"></script>
+    <script src="/static/js/app.js?v=4.7"></script>
 </body>
 </html>

@@ -475,3 +475,19 @@ body.standby-idle .cam-card-hover-toolbar {
   pointer-events: none !important;
 }
 
+/* Layout Switcher Buttons Reset */
+.layout-btn {
+  outline: none !important;
+  user-select: none;
+}
+.layout-btn:focus,
+.layout-btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.layout-btn svg,
+.layout-btn i {
+  pointer-events: none !important;
+}
+
+

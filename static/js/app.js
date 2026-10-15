@@ -270,7 +270,8 @@ function applyLayoutToCard(card, index) {
         }
     } else {
         card.style.display = '';
-        const isFocusMain = state.currentLayout === 'grid-focus' && index === 0;
+        const activeFocusId = state.selectedCameraId || (state.cameras[0] && state.cameras[0].id);
+        const isFocusMain = state.currentLayout === 'grid-focus' && (card.id === `card-${activeFocusId}` || (!state.selectedCameraId && index === 0));
         if (isFocusMain) {
             card.classList.add('md:col-span-2', 'lg:col-span-3', 'row-span-2');
         } else {
@@ -284,7 +285,7 @@ function getGridClass(layout) {
         case 'grid-1x1': return 'grid-cols-1';
         case 'grid-2x2': return 'grid-cols-1 md:grid-cols-2';
         case 'grid-3x2': return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-        case 'grid-3x3': return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+        case 'grid-3x3': return 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
         case 'grid-focus': return 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4';
         default: return 'grid-cols-1 md:grid-cols-2';
     }
@@ -575,24 +576,31 @@ function handleStreamError(camId) {
 
 // Layout Switcher - Seamless, never wipes HTML or disconnects streams
 function setLayout(layout) {
+    if (!layout) layout = 'grid-2x2';
     state.currentLayout = layout;
     try {
         localStorage.setItem('cctv_layout', layout);
     } catch (e) {}
-    document.querySelectorAll('.layout-btn').forEach(btn => {
-        btn.classList.remove('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/40');
-        btn.classList.add('text-slate-400');
+
+    // 1. Update button styling cleanly with no leftover border classes or focus outline issues
+    const layoutTypes = ['grid-1x1', 'grid-2x2', 'grid-3x2', 'grid-3x3', 'grid-focus'];
+    layoutTypes.forEach(type => {
+        const btn = document.getElementById(`btn-${type}`);
+        if (!btn) return;
+        if (type === layout) {
+            btn.className = 'layout-btn p-1.5 rounded bg-cyan-500/25 text-cyan-300 ring-1 ring-cyan-400/60 shadow-sm shadow-cyan-500/20 transition focus:outline-none';
+        } else {
+            btn.className = 'layout-btn p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition focus:outline-none';
+        }
     });
-    const activeBtn = document.getElementById(`btn-${layout}`);
-    if (activeBtn) {
-        activeBtn.classList.add('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/40');
-        activeBtn.classList.remove('text-slate-400');
-    }
     
+    // 2. Update Grid Container Class
     const gridContainer = document.getElementById('camera-grid');
     if (gridContainer) {
         gridContainer.className = 'grid gap-4 transition-all duration-300 ' + getGridClass(state.currentLayout);
     }
+
+    // 3. Update Camera Cards
     state.cameras.forEach((cam, index) => {
         const card = document.getElementById(`card-${cam.id}`);
         if (card) {
