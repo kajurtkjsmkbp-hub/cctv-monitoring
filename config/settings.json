@@ -7,6 +7,8 @@
   "ai_detection_enabled": true,
   "virtual_tripwire_enabled": false,
   "show_bounding_boxes": true,
+  "show_osd_timestamp": false,
+  "show_osd_fps": false,
   "face_auto_zoom_enabled": true,
   "face_zoom_threshold": 50,
   "face_zoom_duration": 2.0,

@@ -589,15 +589,16 @@ class CameraWorker:
                     processed_frame[bg_y1:bg_y2, bg_x1:bg_x2] = sub_rect
                     cv2.putText(processed_frame, tag, (bg_x1 + 2, tag_y), cv2.FONT_HERSHEY_SIMPLEX, 0.32, color, 1, cv2.LINE_AA)
 
-        # Add Sleek Cyber On-Screen Display (OSD) Timestamp
-        time_str = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
-        cv2.putText(processed_frame, f"{self.data.get('name', 'CAM')} | {time_str}", 
-                    (12, 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (240, 240, 240), 1, cv2.LINE_AA)
+        # Optional On-Screen Display (OSD) Timestamp & FPS (Disabled by default for clean video)
+        if settings_mgr.get("show_osd_timestamp", False):
+            time_str = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+            cv2.putText(processed_frame, f"{self.data.get('name', 'CAM')} | {time_str}", 
+                        (12, 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (240, 240, 240), 1, cv2.LINE_AA)
         
-        # OSD status badge
-        fps_str = f"{self.fps} FPS"
-        cv2.putText(processed_frame, fps_str, (processed_frame.shape[1] - 80, 24), 
-                    cv2.FONT_HERSHEY_DUPLEX, 0.45, (0, 230, 150), 1, cv2.LINE_AA)
+        if settings_mgr.get("show_osd_fps", False):
+            fps_str = f"{self.fps} FPS"
+            cv2.putText(processed_frame, fps_str, (processed_frame.shape[1] - 80, 24), 
+                        cv2.FONT_HERSHEY_DUPLEX, 0.45, (0, 230, 150), 1, cv2.LINE_AA)
 
         if self.is_recording:
             # Draw blinking RED record indicator

@@ -1705,6 +1705,10 @@ async function loadSettings() {
             if (trip) trip.checked = data.settings.virtual_tripwire_enabled !== false;
             const showBoxes = document.getElementById('cfg-show-boxes');
             if (showBoxes) showBoxes.checked = data.settings.show_bounding_boxes !== false;
+            const showOsdTime = document.getElementById('cfg-show-osd-time');
+            if (showOsdTime) showOsdTime.checked = data.settings.show_osd_timestamp === true;
+            const showOsdFps = document.getElementById('cfg-show-osd-fps');
+            if (showOsdFps) showOsdFps.checked = data.settings.show_osd_fps === true;
             const faceZoom = document.getElementById('cfg-face-zoom-enabled');
             if (faceZoom) faceZoom.checked = data.settings.face_auto_zoom_enabled !== false;
             updateFaceZoomBtnUI(data.settings.face_auto_zoom_enabled !== false);
@@ -1754,6 +1758,8 @@ async function saveSettings() {
         telegram_alert_mode: document.getElementById('cfg-telegram-mode').value,
         ai_detection_enabled: document.getElementById('cfg-ai-enabled').checked,
         show_bounding_boxes: document.getElementById('cfg-show-boxes') ? document.getElementById('cfg-show-boxes').checked : true,
+        show_osd_timestamp: document.getElementById('cfg-show-osd-time') ? document.getElementById('cfg-show-osd-time').checked : false,
+        show_osd_fps: document.getElementById('cfg-show-osd-fps') ? document.getElementById('cfg-show-osd-fps').checked : false,
         face_auto_zoom_enabled: document.getElementById('cfg-face-zoom-enabled') ? document.getElementById('cfg-face-zoom-enabled').checked : true,
         face_zoom_threshold: parseInt(document.getElementById('cfg-face-threshold') ? document.getElementById('cfg-face-threshold').value : 50) || 50,
         face_zoom_duration: parseFloat(document.getElementById('cfg-face-duration') ? document.getElementById('cfg-face-duration').value : 2.0) || 2.0,
