@@ -116,7 +116,7 @@
                 </button>
 
                 <!-- Action: Scan ONVIF -->
-                <button onclick="openScanModal()" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition">
+                <button onclick="openScanModal()" id="btn-scan-onvif" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition">
                     <i data-lucide="radar" class="w-4 h-4 animate-spin-slow"></i>
                     <span>Scan ONVIF</span>
                 </button>
@@ -128,13 +128,13 @@
                 </button>
 
                 <!-- Action: Galeri -->
-                <button onclick="openGalleryModal()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                <button onclick="openGalleryModal()" id="btn-gallery" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
                     <i data-lucide="folder-video" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Galeri</span>
                 </button>
 
                 <!-- Action: Tambah Kamera -->
-                <button onclick="openAddCameraModal()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                <button onclick="openAddCameraModal()" id="btn-add-camera" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Tambah</span>
                 </button>
@@ -176,6 +176,23 @@
                 <button onclick="toggleFullscreen()" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" title="Layar Penuh Matrix">
                     <i data-lucide="expand" class="w-4 h-4"></i>
                 </button>
+
+                <!-- User Management (Admin Only) -->
+                <button onclick="openUsersModal()" id="btn-user-mgmt" class="px-2.5 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center gap-1.5 transition" title="Manajemen Pengguna & Bagikan Link (RBAC)">
+                    <i data-lucide="users" class="w-4 h-4 text-purple-400"></i>
+                    <span class="hidden md:inline">Akses</span>
+                </button>
+
+                <!-- Current User Badge & Logout -->
+                <div id="auth-user-container" class="flex items-center gap-1.5">
+                    <div id="user-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-slate-800 font-mono text-xs text-cyan-300" title="Akun Pengguna Aktif">
+                        <i data-lucide="shield" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span id="user-display-name" class="max-w-[100px] truncate">Admin</span>
+                    </div>
+                    <button onclick="handleLogout()" id="btn-logout" class="p-1.5 rounded-lg bg-slate-900 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-800 transition" title="Keluar / Logout">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
 
         </div>
@@ -1095,12 +1112,207 @@
         </div>
     </div>
 
-    <!-- Toast Notification Container -->
-    <div id="toast" class="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg border shadow-xl backdrop-blur-md font-mono text-xs transition-all duration-300 transform translate-y-10 opacity-0 pointer-events-none">
-        Notification
+    <!-- 9. LOGIN GATEWAY MODAL (RBAC) -->
+    <div id="login-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-sm p-6 border border-cyan-500/40 shadow-2xl relative text-center">
+            <div class="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-400/40 flex items-center justify-center mx-auto mb-3 text-cyan-400 shadow-lg shadow-cyan-500/10">
+                <i data-lucide="shield-check" class="w-7 h-7"></i>
+            </div>
+            <h2 class="font-tech font-bold text-xl text-white tracking-wide">Khanza.NET <span class="text-cyan-400">VISION</span></h2>
+            <p class="font-mono text-xs text-slate-400 mb-6">Security Access Gateway • Masuk ke Sistem</p>
+
+            <form onsubmit="handleLoginSubmit(event)" class="space-y-4 text-left">
+                <div id="login-error-msg" class="hidden p-2.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-mono text-center">
+                    Username atau password salah!
+                </div>
+                <div>
+                    <label class="block font-mono text-slate-400 text-xs mb-1">Username:</label>
+                    <div class="relative">
+                        <i data-lucide="user" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
+                        <input type="text" id="login-username" required placeholder="Masukkan username" 
+                               class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 text-sm outline-none focus:border-cyan-400 font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-mono text-slate-400 text-xs mb-1">Password:</label>
+                    <div class="relative">
+                        <i data-lucide="key" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
+                        <input type="password" id="login-password" required placeholder="Masukkan password" 
+                               class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 text-sm outline-none focus:border-cyan-400 font-mono">
+                    </div>
+                </div>
+                <button type="submit" id="btn-login-submit" 
+                        class="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-lg shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2 mt-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i> Masuk ke Sistem
+                </button>
+            </form>
+            <p class="mt-5 text-[11px] text-slate-500 font-mono">
+                Punya Direct Link / Magic Link? Buka link tersebut langsung di peramban Anda.
+            </p>
+        </div>
+    </div>
+
+    <!-- 10. USER MANAGEMENT & SHARE ACCESS MODAL (RBAC) -->
+    <div id="users-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl w-full max-w-4xl p-6 border border-purple-500/40 shadow-2xl relative max-h-[92vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-tech font-bold text-lg text-slate-100">Manajemen Akses & Pengguna (Multi-User RBAC)</h3>
+                        <p class="text-xs text-slate-400">Atur pengguna, batasi kamera yang boleh dilihat, matikan fitur sensitif, atau bagikan Direct Magic Link</p>
+                    </div>
+                </div>
+                <button onclick="closeUsersModal()" class="text-slate-400 hover:text-white p-1.5 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-y-auto pr-1 space-y-6">
+                <!-- Section 1: Daftar Pengguna Aktif -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-tech font-bold text-sm text-cyan-400 flex items-center gap-1.5">
+                            <i data-lucide="shield" class="w-4 h-4"></i> Daftar Pengguna & Link Berbagi
+                        </h4>
+                        <button onclick="showCreateUserForm()" class="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Buat Pengguna Baru
+                        </button>
+                    </div>
+
+                    <div id="users-table-container" class="space-y-2.5">
+                        <!-- User cards will be rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Section 2: Form Tambah / Edit Pengguna -->
+                <div id="user-form-container" class="hidden p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h4 id="user-form-title" class="font-tech font-bold text-sm text-purple-300 flex items-center gap-1.5">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i> Form Pengguna Baru
+                        </h4>
+                        <button onclick="hideUserForm()" class="text-xs text-slate-400 hover:text-slate-200">Batal</button>
+                    </div>
+
+                    <input type="hidden" id="usr-form-id" value="">
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Username (Login ID):</label>
+                            <input type="text" id="usr-form-username" placeholder="misal: tamu_cam1" 
+                                   class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-mono outline-none focus:border-purple-400">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Nama Panggilan / Label:</label>
+                            <input type="text" id="usr-form-display" placeholder="misal: Tamu Kamar Depan" 
+                                   class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-purple-400">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-400 mb-1">Password:</label>
+                            <input type="text" id="usr-form-password" placeholder="Minimal 4 karakter" 
+                                   class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-mono outline-none focus:border-purple-400">
+                            <span id="usr-form-pwd-hint" class="text-[10px] text-slate-500 hidden">Kosongkan jika tidak ingin mengubah password</span>
+                        </div>
+                    </div>
+
+                    <!-- Role Dropdown -->
+                    <div class="text-xs max-w-xs">
+                        <label class="block font-mono text-slate-400 mb-1">Peran / Role:</label>
+                        <select id="usr-form-role" onchange="handleRoleChange(this.value)" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-cyan-300 outline-none">
+                            <option value="user">Tamu / Pengguna Terbatas</option>
+                            <option value="admin">Administrator (Akses Penuh Semua Kamera & Fitur)</option>
+                        </select>
+                    </div>
+
+                    <!-- Kamera yang Diizinkan -->
+                    <div id="usr-cameras-section" class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-2">
+                        <label class="block font-tech font-bold text-cyan-400 text-xs">Pilih Kamera yang Boleh Dilihat:</label>
+                        <div id="usr-camera-checkboxes" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                            <!-- Injected dynamically based on cameras -->
+                        </div>
+                    </div>
+
+                    <!-- Fitur yang Diizinkan -->
+                    <div id="usr-perms-section" class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-2">
+                        <label class="block font-tech font-bold text-purple-400 text-xs">Hak Akses & Izin Fitur:</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                                <input type="checkbox" id="perm-ptz" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                                <span>Kontrol PTZ (Putar Kamera)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                                <input type="checkbox" id="perm-dvr" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                                <span>Timeshift DVR (Replay)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                                <input type="checkbox" id="perm-snapshot" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                                <span>Ambil Foto (Snapshot)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                                <input type="checkbox" id="perm-record" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                                <span>Rekam Video Manual</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                                <input type="checkbox" id="perm-audio" checked class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                                <span>Dengar Suara Mikrofon</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                                <input type="checkbox" id="perm-gallery" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                                <span>Buka Galeri Rekaman</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-2">
+                        <button onclick="hideUserForm()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg font-semibold">Batal</button>
+                        <button onclick="saveUserSubmit()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded-lg font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-600/20">
+                            <i data-lucide="check" class="w-4 h-4"></i> Simpan Pengguna
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2 shrink-0">
+                <button onclick="closeUsersModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg font-semibold">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 11. CYBER CONFIRMATION & DIALOG MODAL -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 transition-all duration-200">
+        <div class="glass-panel rounded-2xl w-full max-w-sm p-6 border shadow-2xl relative text-center border-slate-700 bg-slate-950/95 transition-all duration-200" id="confirm-modal-box">
+            <!-- Icon -->
+            <div id="confirm-icon-wrapper" class="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-red-400 bg-red-500/10 border border-red-500/30 shadow-lg shadow-red-500/10">
+                <i data-lucide="alert-triangle" class="w-7 h-7" id="confirm-icon"></i>
+            </div>
+            
+            <!-- Title & Subtitle -->
+            <h3 class="font-tech font-bold text-lg text-slate-100 mb-1.5" id="confirm-title">Konfirmasi Tindakan</h3>
+            <p class="text-xs text-slate-400 mb-6 font-mono leading-relaxed px-1" id="confirm-message">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>
+
+            <!-- Buttons -->
+            <div class="flex items-center justify-center gap-3">
+                <button id="confirm-btn-cancel" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold text-xs border border-slate-700 active:scale-95 transition">
+                    Batal
+                </button>
+                <button id="confirm-btn-ok" class="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs border border-red-500 shadow-lg shadow-red-600/30 active:scale-95 transition flex items-center justify-center gap-1.5">
+                    <span>Lanjutkan</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Cyber Toast Container -->
+    <div id="toast-container" class="fixed top-6 right-6 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+        <!-- Toast elements injected dynamically -->
     </div>
 
     <!-- Application JS -->
-    <script src="/static/js/app.js?v=4.3"></script>
+    <script src="/static/js/app.js?v=4.4"></script>
 </body>
 </html>

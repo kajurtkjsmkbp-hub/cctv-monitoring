@@ -58,7 +58,34 @@ const state = {
 
     // Real Live RTSP Audio & DVR Red Seekbar State
     liveAudioCamId: null,
-    dvrState: {}
+    dvrState: {},
+
+    // RBAC & Authentication State
+    currentUser: null,
+    authToken: localStorage.getItem('cctv_auth_token') || '',
+    allUsers: []
+};
+
+// Global Fetch Interceptor to automatically attach Auth Token & handle 401
+const _originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (state.authToken) {
+        if (options.headers instanceof Headers) {
+            options.headers.set('X-Auth-Token', state.authToken);
+        } else if (Array.isArray(options.headers)) {
+            options.headers.push(['X-Auth-Token', state.authToken]);
+        } else {
+            options.headers['X-Auth-Token'] = state.authToken;
+        }
+    }
+    return _originalFetch(url, options).then(res => {
+        if (res.status === 401 && typeof url === 'string' && !url.includes('/api/auth/')) {
+            showLoginModal();
+        }
+        return res;
+    });
 };
 
 // Web Audio API Beep Synthesizer for Alerts
@@ -122,9 +149,17 @@ async function fetchCameras() {
         const res = await fetch('/api/cameras');
         const data = await res.json();
         state.cameras = data.cameras || [];
+        
+        // Auto adapt layout if user only has 1 camera permitted
+        if (state.currentUser && state.currentUser.role !== 'admin' && state.cameras.length === 1) {
+            state.selectedCameraId = state.cameras[0].id;
+            setLayout('grid-1x1');
+        } else {
+            setLayout(state.currentLayout);
+        }
+
         renderCameraGrid();
         updateHeaderBadges();
-        setLayout(state.currentLayout);
     } catch (err) {
         console.error('Failed to fetch cameras:', err);
     }
@@ -177,14 +212,19 @@ function renderCameraGrid() {
     gridContainer.className = 'grid gap-4 transition-all duration-300 ' + getGridClass(state.currentLayout);
 
     if (state.cameras.length === 0) {
+        const isAdmin = state.currentUser ? (state.currentUser.role === 'admin') : false;
         gridContainer.innerHTML = `
             <div class="col-span-full py-20 text-center glass-panel rounded-xl">
                 <i data-lucide="video-off" class="w-16 h-16 text-slate-500 mx-auto mb-4"></i>
-                <h3 class="text-xl font-tech text-slate-300 mb-2">Tidak Ada Kamera Terhubung</h3>
-                <p class="text-slate-400 max-w-md mx-auto mb-6 text-sm">Gunakan tombol Scan ONVIF untuk mendeteksi kamera di jaringan lokal secara otomatis.</p>
+                <h3 class="text-xl font-tech text-slate-300 mb-2">Tidak Ada Kamera Tersedia</h3>
+                <p class="text-slate-400 max-w-md mx-auto mb-6 text-sm">
+                    ${isAdmin ? 'Gunakan tombol Scan ONVIF untuk mendeteksi kamera di jaringan lokal secara otomatis.' : 'Akun Anda belum memiliki kamera yang diizinkan atau sedang offline.'}
+                </p>
+                ${isAdmin ? `
                 <button onclick="openScanModal()" class="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-lg flex items-center gap-2 mx-auto">
                     <i data-lucide="radar" class="w-4 h-4"></i> Scan Jaringan ONVIF
                 </button>
+                ` : ''}
             </div>
         `;
         lucide.createIcons();
@@ -260,7 +300,16 @@ function createCameraCard(cam, index) {
         cam.motion ? 'motion-alert-active' : 'border-slate-800 hover:border-cyan-500/40'
     } ${colSpan}`;
 
-    const streamUrl = `/stream/${cam.id}`;
+    const isAdmin = state.currentUser ? (state.currentUser.role === 'admin') : false;
+    const perms = (state.currentUser && state.currentUser.permissions) || {};
+    const canPTZ = isAdmin || !!perms.can_ptz;
+    const canDVR = isAdmin || !!perms.can_dvr;
+    const canSnapshot = isAdmin || !!perms.can_snapshot;
+    const canRecord = isAdmin || !!perms.can_record;
+    const canAudio = isAdmin || (perms.can_audio !== false);
+
+    const tokenParam = state.authToken ? `?token=${encodeURIComponent(state.authToken)}` : '';
+    const streamUrl = `/stream/${cam.id}${tokenParam}`;
     const statusDotClass = cam.connected ? 'bg-emerald-400 pulse-green' : 'bg-red-500 pulse-red';
 
     div.innerHTML = `
@@ -279,7 +328,8 @@ function createCameraCard(cam, index) {
                     </span>
                 </div>
                 
-                <!-- Always-Visible Live Microphone Audio Toggle -->
+                <!-- Live Microphone Audio Toggle (If Permitted) -->
+                ${canAudio ? `
                 <button onclick="toggleCameraAudioLive('${cam.id}')" id="card-audio-btn-${cam.id}" 
                         class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition border shrink-0 ${
                             state.liveAudioCamId === cam.id ? 
@@ -289,6 +339,7 @@ function createCameraCard(cam, index) {
                     <i data-lucide="${state.liveAudioCamId === cam.id ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i>
                     <span id="card-audio-txt-${cam.id}">${state.liveAudioCamId === cam.id ? 'SUARA ON' : 'SUARA'}</span>
                 </button>
+                ` : ''}
             </div>
 
             <!-- Row 2: Alamat IP Kamera (Kiri) & Status Teknis (Ping, FPS, Resolusi) (Kanan) -->
@@ -336,17 +387,22 @@ function createCameraCard(cam, index) {
             <!-- Quick Action Toolbar on Hover -->
             <div class="cam-card-hover-toolbar absolute bottom-2 inset-x-2 p-1.5 bg-slate-950/80 backdrop-blur-md rounded-lg border border-slate-700/70 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                 <div class="flex items-center gap-1">
+                    ${canSnapshot ? `
                     <button onclick="takeSnapshot('${cam.id}')" title="Ambil Foto Snapshot" class="p-1.5 hover:bg-cyan-500/20 text-cyan-400 rounded transition">
                         <i data-lucide="camera" class="w-4 h-4"></i>
                     </button>
+                    ` : ''}
+                    ${canRecord ? `
                     <button onclick="toggleRecord('${cam.id}')" id="rec-btn-${cam.id}" title="Rekam Video Clip" class="p-1.5 ${cam.is_recording ? 'bg-red-500/30 text-red-400' : 'hover:bg-red-500/20 text-slate-300'} rounded transition">
                         <i data-lucide="circle-dot" class="w-4 h-4"></i>
                     </button>
-                    ${cam.has_ptz ? `
+                    ` : ''}
+                    ${(cam.has_ptz && canPTZ) ? `
                     <button onclick="openPTZModal('${cam.id}', '${cam.name}', '${cam.ip}')" title="Kontrol PTZ (Putar Kamera)" class="p-1.5 hover:bg-cyan-500/20 text-cyan-400 rounded transition">
                         <i data-lucide="move" class="w-4 h-4"></i>
                     </button>
                     ` : ''}
+                    ${isAdmin ? `
                     <!-- Privacy Masking Button (Feature 4) -->
                     <button onclick="openMaskModal('${cam.id}', '${cam.name}')" title="Sensor & Privacy Masking" class="p-1.5 hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 rounded transition">
                         <i data-lucide="eye-off" class="w-4 h-4"></i>
@@ -359,6 +415,7 @@ function createCameraCard(cam, index) {
                             <option value="bw" ${cam.filter === 'bw' ? 'selected' : ''}>Black & White</option>
                         </select>
                     </div>
+                    ` : ''}
                 </div>
 
                 <div class="flex items-center gap-1">
@@ -368,21 +425,25 @@ function createCameraCard(cam, index) {
                     <button onclick="toggleQuality('${cam.id}')" id="quality-btn-${cam.id}" title="Ganti Kualitas Stream" class="px-2 py-0.5 font-mono text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700">
                         ${cam.stream_quality === 'hd' ? 'HD' : 'SUB'}
                     </button>
+                    ${isAdmin ? `
                     <button onclick="toggleMotionAI('${cam.id}')" id="motion-toggle-${cam.id}" title="Toggle AI Motion Detection" class="p-1.5 ${cam.motion_detection ? 'text-emerald-400' : 'text-slate-500'} hover:bg-slate-800 rounded transition">
                         <i data-lucide="scan" class="w-4 h-4"></i>
                     </button>
+                    ` : ''}
                     <button onclick="toggleFullscreen('card-${cam.id}')" title="Layar Penuh" class="p-1.5 hover:bg-cyan-500/20 text-slate-300 hover:text-white rounded transition">
                         <i data-lucide="maximize-2" class="w-4 h-4"></i>
                     </button>
+                    ${isAdmin ? `
                     <button onclick="openEditCameraModal('${cam.id}')" title="Pengaturan Kamera" class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition">
                         <i data-lucide="settings" class="w-4 h-4"></i>
                     </button>
+                    ` : ''}
                 </div>
             </div>
         </div>
 
         <!-- YouTube-Style Red Seek Bar & DVR Timeshift Scrubber (Garis Merah Seperti YouTube) -->
-        <div class="cam-card-dvr-panel px-3 py-2 bg-slate-950/95 border-t border-slate-800/90 flex flex-col gap-1.5 select-none" id="dvr-panel-${cam.id}">
+        <div class="cam-card-dvr-panel px-3 py-2 bg-slate-950/95 border-t border-slate-800/90 flex flex-col gap-1.5 select-none ${canDVR ? '' : 'hidden'}" id="dvr-panel-${cam.id}">
             <!-- Interactive Scrubber Track Area -->
             <div class="dvr-track-area relative w-full py-1.5 cursor-pointer group/yt" id="dvr-track-${cam.id}"
                  onmousedown="startDVRScrubbing('${cam.id}', event)"
@@ -430,15 +491,21 @@ function createCameraCard(cam, index) {
                 </div>
 
                 <div class="flex items-center gap-1.5">
+                    ${canSnapshot ? `
                     <button onclick="takeSnapshot('${cam.id}')" class="p-1 hover:text-cyan-400 text-slate-400 transition" title="Ambil Foto Snapshot">
                         <i data-lucide="camera" class="w-4 h-4"></i>
                     </button>
+                    ` : ''}
+                    ${canRecord ? `
                     <button onclick="toggleRecord('${cam.id}')" id="dvr-rec-btn-${cam.id}" class="p-1 hover:text-red-400 text-slate-400 transition" title="Rekam Video Clip">
                         <i data-lucide="circle-dot" class="w-4 h-4"></i>
                     </button>
+                    ` : ''}
+                    ${isAdmin ? `
                     <button onclick="openMaskModal('${cam.id}', '${cam.name}')" class="p-1 hover:text-amber-400 text-slate-400 transition" title="Sensor Privacy Masking">
                         <i data-lucide="eye-off" class="w-4 h-4"></i>
                     </button>
+                    ` : ''}
                     <button onclick="toggleFullscreen('card-${cam.id}')" class="p-1 hover:text-cyan-400 text-slate-400 transition" title="Layar Penuh">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
                     </button>
@@ -468,7 +535,8 @@ function reloadStream(camId) {
     }
     const img = document.getElementById(`img-${camId}`);
     if (img) {
-        img.src = `/stream/${camId}?t=${Date.now()}`;
+        const tokenParam = state.authToken ? `&token=${encodeURIComponent(state.authToken)}` : '';
+        img.src = `/stream/${camId}?t=${Date.now()}${tokenParam}`;
     }
 }
 
@@ -480,7 +548,8 @@ function handleStreamError(camId) {
         streamReconnectTimeouts[camId] = null;
         const img = document.getElementById(`img-${camId}`);
         if (img) {
-            img.src = `/stream/${camId}?t=${Date.now()}`;
+            const tokenParam = state.authToken ? `&token=${encodeURIComponent(state.authToken)}` : '';
+            img.src = `/stream/${camId}?t=${Date.now()}${tokenParam}`;
         }
     }, 2500);
 }
@@ -965,7 +1034,14 @@ async function loadGalleryItems(filterType = 'all') {
 
 async function deleteGalleryItem(filename, type) {
     requirePin(async () => {
-        if (!confirm(`Hapus file ${filename}?`)) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Hapus File Media',
+            message: `Apakah Anda yakin ingin menghapus file "${filename}" secara permanen?`,
+            confirmText: 'Ya, Hapus File',
+            cancelText: 'Batal',
+            type: 'danger'
+        });
+        if (!confirmed) return;
         try {
             const res = await fetch('/api/gallery/delete', {
                 method: 'POST',
@@ -974,7 +1050,7 @@ async function deleteGalleryItem(filename, type) {
             });
             const data = await res.json();
             if (data.success) {
-                showToast('File berhasil dihapus', 'info');
+                showToast('File berhasil dihapus dari server', 'success');
                 loadGalleryItems();
             }
         } catch (e) {
@@ -1161,21 +1237,147 @@ function toggleFaceOptionsPanel(isOpen) {
     }
 }
 
-// Toast Notifications
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.textContent = message;
-    
-    let bg = 'bg-slate-900 border-cyan-500/50 text-cyan-300';
-    if (type === 'success') bg = 'bg-slate-900 border-emerald-500/60 text-emerald-300';
-    if (type === 'error') bg = 'bg-slate-900 border-red-500/60 text-red-300';
+// ==========================================
+// CYBER TOAST NOTIFICATIONS & CONFIRM DIALOG
+// ==========================================
 
-    toast.className = `fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg border shadow-xl backdrop-blur-md font-mono text-xs transition-all duration-300 transform translate-y-0 opacity-100 ${bg}`;
-    
+function showToast(message, type = 'info', customTitle = null) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toastId = 'toast-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = 'pointer-events-auto transform transition-all duration-300 translate-x-full opacity-0 glass-panel rounded-xl p-3.5 border shadow-2xl flex items-start gap-3 backdrop-blur-xl relative overflow-hidden select-none';
+
+    let icon = 'info';
+    let borderColor = 'border-cyan-500/50 bg-slate-950/95 shadow-cyan-500/10';
+    let iconColor = 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30';
+    let defaultTitle = 'INFORMASI SISTEM';
+
+    if (type === 'success') {
+        icon = 'check-circle-2';
+        borderColor = 'border-emerald-500/50 bg-slate-950/95 shadow-emerald-500/10';
+        iconColor = 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30';
+        defaultTitle = 'BERHASIL';
+    } else if (type === 'error' || type === 'danger') {
+        icon = 'alert-octagon';
+        borderColor = 'border-red-500/50 bg-slate-950/95 shadow-red-500/10';
+        iconColor = 'text-red-400 bg-red-500/15 border-red-500/30';
+        defaultTitle = 'PERINGATAN SISTEM';
+    } else if (type === 'warning') {
+        icon = 'alert-triangle';
+        borderColor = 'border-amber-500/50 bg-slate-950/95 shadow-amber-500/10';
+        iconColor = 'text-amber-400 bg-amber-500/15 border-amber-500/30';
+        defaultTitle = 'PERHATIAN';
+    }
+
+    toast.className += ' ' + borderColor;
+
+    toast.innerHTML = `
+        <div class="w-8 h-8 rounded-lg ${iconColor} border flex items-center justify-center shrink-0 mt-0.5">
+            <i data-lucide="${icon}" class="w-4 h-4"></i>
+        </div>
+        <div class="flex-1 min-w-0 pr-4">
+            <div class="text-[10px] font-mono tracking-wider text-slate-400 font-bold uppercase mb-0.5">${customTitle || defaultTitle}</div>
+            <div class="text-xs text-slate-100 font-medium leading-relaxed break-words">${message}</div>
+        </div>
+        <button onclick="dismissToast('${toastId}')" class="text-slate-500 hover:text-slate-300 p-1 shrink-0 transition" title="Tutup Notifikasi">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-800 overflow-hidden">
+            <div class="h-full bg-cyan-400 transition-all linear" id="${toastId}-prog" style="width: 100%;"></div>
+        </div>
+    `;
+
+    container.appendChild(toast);
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-full', 'opacity-0');
+        toast.classList.add('translate-x-0', 'opacity-100');
+        const prog = document.getElementById(`${toastId}-prog`);
+        if (prog) {
+            prog.style.transitionDuration = '3500ms';
+            prog.style.width = '0%';
+        }
+    });
+
     setTimeout(() => {
-        toast.className = 'fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg border shadow-xl backdrop-blur-md font-mono text-xs transition-all duration-300 transform translate-y-10 opacity-0 pointer-events-none';
-    }, 2800);
+        dismissToast(toastId);
+    }, 3800);
+}
+
+function dismissToast(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('translate-x-0', 'opacity-100');
+    el.classList.add('translate-x-full', 'opacity-0');
+    setTimeout(() => {
+        if (el && el.parentNode) el.remove();
+    }, 300);
+}
+
+function showConfirmDialog({
+    title = 'Konfirmasi Tindakan',
+    message = 'Apakah Anda yakin ingin melanjutkan?',
+    confirmText = 'Lanjutkan',
+    cancelText = 'Batal',
+    type = 'danger'
+} = {}) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const box = document.getElementById('confirm-modal-box');
+        const titleEl = document.getElementById('confirm-title');
+        const msgEl = document.getElementById('confirm-message');
+        const okBtn = document.getElementById('confirm-btn-ok');
+        const cancelBtn = document.getElementById('confirm-btn-cancel');
+        const iconWrapper = document.getElementById('confirm-icon-wrapper');
+        const iconEl = document.getElementById('confirm-icon');
+
+        if (!modal) {
+            resolve(confirm(message));
+            return;
+        }
+
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        cancelBtn.textContent = cancelText;
+        okBtn.innerHTML = `<span>${confirmText}</span>`;
+
+        if (type === 'danger') {
+            iconWrapper.className = 'w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-red-400 bg-red-500/10 border border-red-500/30 shadow-lg shadow-red-500/15';
+            iconEl.setAttribute('data-lucide', 'alert-triangle');
+            okBtn.className = 'flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs border border-red-500 shadow-lg shadow-red-600/30 active:scale-95 transition flex items-center justify-center gap-1.5';
+            box.className = 'glass-panel rounded-2xl w-full max-w-sm p-6 border shadow-2xl relative text-center border-red-500/40 bg-slate-950/95 transition-all duration-200';
+        } else if (type === 'warning') {
+            iconWrapper.className = 'w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-amber-400 bg-amber-500/10 border border-amber-500/30 shadow-lg shadow-amber-500/15';
+            iconEl.setAttribute('data-lucide', 'help-circle');
+            okBtn.className = 'flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs border border-amber-500 shadow-lg shadow-amber-600/30 active:scale-95 transition flex items-center justify-center gap-1.5';
+            box.className = 'glass-panel rounded-2xl w-full max-w-sm p-6 border shadow-2xl relative text-center border-amber-500/40 bg-slate-950/95 transition-all duration-200';
+        } else {
+            iconWrapper.className = 'w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 shadow-lg shadow-cyan-500/15';
+            iconEl.setAttribute('data-lucide', 'info');
+            okBtn.className = 'flex-1 py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs border border-cyan-400 shadow-lg shadow-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1.5';
+            box.className = 'glass-panel rounded-2xl w-full max-w-sm p-6 border shadow-2xl relative text-center border-cyan-500/40 bg-slate-950/95 transition-all duration-200';
+        }
+
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        function cleanup(result) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            okBtn.onclick = null;
+            cancelBtn.onclick = null;
+            resolve(result);
+        }
+
+        okBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+    });
 }
 
 // Manual Trigger for DHCP IP Auto-Healing
@@ -1874,12 +2076,19 @@ async function submitNewFace() {
 
 async function deleteFace(faceId, name) {
     requirePin(async () => {
-        if (!confirm(`Hapus wajah "${name}" dari database AI?`)) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Hapus Database Wajah AI',
+            message: `Hapus wajah "${name}" dari database AI pengenal wajah?`,
+            confirmText: 'Ya, Hapus Wajah',
+            cancelText: 'Batal',
+            type: 'danger'
+        });
+        if (!confirmed) return;
         try {
             const res = await fetch(`/api/faces/${faceId}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
-                showToast(`Wajah "${name}" dihapus`, 'info');
+                showToast(`Wajah "${name}" berhasil dihapus dari database`, 'success');
                 loadFacesList();
             } else {
                 showToast('Gagal menghapus wajah', 'error');
@@ -3156,21 +3365,611 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ==========================================
-// 18. INITIALIZE ON DOM READY
+// 18. ROLE-BASED ACCESS CONTROL (RBAC) & USER MANAGEMENT
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Restore and apply saved layout immediately
-    setLayout(state.currentLayout);
-    requestWakeLock();
 
-    updateClock();
-    state.clockInterval = setInterval(updateClock, 1000);
+async function checkAuthStatus() {
+    try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (data.success && data.authenticated && data.user) {
+            state.currentUser = data.user;
+            return true;
+        }
+    } catch (e) {
+        console.warn('[RBAC] Auth check failed:', e);
+    }
+    return false;
+}
+
+function applyUserPermissionsToUI() {
+    if (!state.currentUser) return;
+    const user = state.currentUser;
+    const isAdmin = user.role === 'admin';
+    const perms = user.permissions || {};
+
+    // 1. User Badge in Navbar
+    const userBadgeText = document.getElementById('user-display-name');
+    if (userBadgeText) {
+        userBadgeText.textContent = user.display_name || user.username;
+        userBadgeText.title = `Login sebagai: ${user.username} (${isAdmin ? 'Super Admin' : 'Tamu Terbatas'})`;
+    }
+
+    // 2. Admin vs Restricted Nav Elements
+    const btnUserMgmt = document.getElementById('btn-user-mgmt');
+    if (btnUserMgmt) btnUserMgmt.style.display = isAdmin ? '' : 'none';
+
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) btnSettings.style.display = isAdmin ? '' : 'none';
+
+    const btnAutoHeal = document.getElementById('btn-auto-heal');
+    if (btnAutoHeal) btnAutoHeal.style.display = isAdmin ? '' : 'none';
+
+    const btnFaces = document.getElementById('btn-faces');
+    if (btnFaces) btnFaces.style.display = isAdmin ? '' : 'none';
+
+    const btnArming = document.getElementById('btn-arming');
+    if (btnArming) btnArming.style.display = isAdmin ? '' : 'none';
+
+    const btnSyncPlayback = document.getElementById('btn-sync-playback');
+    if (btnSyncPlayback) btnSyncPlayback.style.display = (isAdmin && perms.can_dvr !== false) ? '' : 'none';
+
+    // 3. Scan ONVIF & Add Camera Buttons (Strictly Admin Only)
+    const btnScan = document.getElementById('btn-scan-onvif');
+    if (btnScan) btnScan.style.display = isAdmin ? '' : 'none';
+
+    const btnAddCam = document.getElementById('btn-add-camera');
+    if (btnAddCam) btnAddCam.style.display = isAdmin ? '' : 'none';
+
+    const btnEmap = document.getElementById('btn-emap');
+    if (btnEmap) btnEmap.style.display = isAdmin ? '' : 'none';
+
+    const btnFaceZoom = document.getElementById('btn-face-zoom-toggle');
+    if (btnFaceZoom) btnFaceZoom.style.display = isAdmin ? '' : 'none';
+
+    const badgeStorage = document.getElementById('badge-storage');
+    if (badgeStorage) badgeStorage.style.display = isAdmin ? '' : 'none';
+
+    // 4. Gallery Button
+    const btnGallery = document.getElementById('btn-gallery');
+    if (btnGallery) {
+        btnGallery.style.display = (isAdmin || perms.can_gallery) ? '' : 'none';
+    }
+
+    // 5. Adapt layout buttons & patrol if restricted user has only 1 camera
+    const allowed = user.allowed_cameras || [];
+    const isSingleCamUser = !isAdmin && (allowed.length === 1 && allowed[0] !== '*');
+    if (isSingleCamUser) {
+        ['btn-grid-2x2', 'btn-grid-3x2', 'btn-grid-3x3', 'btn-grid-focus', 'btn-patrol'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        setLayout('grid-1x1');
+    }
+}
+
+function onAuthenticatedSuccess() {
+    applyUserPermissionsToUI();
     loadSettings();
     fetchCameras();
     fetchStorageStats();
     initPWA();
     checkArmingStatus();
     initCinemaKeyboardShortcuts();
-    state.statsInterval = setInterval(pollStats, 2000);
+    if (!state.statsInterval) {
+        state.statsInterval = setInterval(pollStats, 2000);
+    }
     setInterval(fetchStorageStats, 15000);
+}
+
+// ==========================================
+// 19. USER MANAGEMENT MODAL CONTROLLER
+// ==========================================
+
+async function openUsersModal() {
+    if (!state.currentUser || state.currentUser.role !== 'admin') {
+        showToast('Akses ditolak: Hanya Super Admin!', 'error');
+        return;
+    }
+    const modal = document.getElementById('users-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    hideUserForm();
+    await loadUsersList();
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function closeUsersModal() {
+    const modal = document.getElementById('users-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function loadUsersList() {
+    const container = document.getElementById('users-table-container');
+    if (!container) return;
+    container.innerHTML = `<div class="py-6 text-center text-slate-400 font-mono text-xs">Memuat data pengguna...</div>`;
+
+    try {
+        const res = await fetch('/api/auth/users');
+        const data = await res.json();
+        if (!data.success) {
+            container.innerHTML = `<div class="p-4 text-center text-red-400 text-xs">${data.error || 'Gagal memuat pengguna'}</div>`;
+            return;
+        }
+
+        state.allUsers = data.users || [];
+        renderUsersList(state.allUsers);
+    } catch (e) {
+        container.innerHTML = `<div class="p-4 text-center text-red-400 text-xs">Error jaringan: ${e.message}</div>`;
+    }
+}
+
+function renderUsersList(users) {
+    const container = document.getElementById('users-table-container');
+    if (!container) return;
+
+    if (users.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs">Belum ada pengguna. Klik tombol "Buat Pengguna Baru" di atas.</div>`;
+        return;
+    }
+
+    container.innerHTML = users.map(u => {
+        const isAdmin = u.role === 'admin';
+        const roleBadge = isAdmin ? 
+            `<span class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold">SUPER ADMIN</span>` :
+            `<span class="px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px] font-mono font-bold">TAMU TERBATAS</span>`;
+
+        // Camera badges
+        let camBadges = '';
+        if (isAdmin || (u.allowed_cameras && u.allowed_cameras.includes('*'))) {
+            camBadges = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">Semua Kamera (Full)</span>`;
+        } else if (u.allowed_cameras && u.allowed_cameras.length > 0) {
+            camBadges = u.allowed_cameras.map(cid => {
+                const found = state.cameras.find(c => c.id === cid);
+                const name = found ? found.name : cid.toUpperCase();
+                return `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-mono">${name}</span>`;
+            }).join(' ');
+        } else {
+            camBadges = `<span class="px-2 py-0.5 rounded bg-red-500/10 text-red-400 text-[10px]">Tidak ada kamera</span>`;
+        }
+
+        // Permissions badges
+        const p = u.permissions || {};
+        const permList = [];
+        if (p.can_ptz) permList.push('PTZ');
+        if (p.can_dvr) permList.push('DVR');
+        if (p.can_snapshot) permList.push('Foto');
+        if (p.can_record) permList.push('Rekam');
+        if (p.can_audio) permList.push('Audio');
+        if (p.can_gallery) permList.push('Galeri');
+
+        const permsHtml = isAdmin ? 
+            `<span class="text-slate-500 text-[10px]">Akses Penuh Semua Fitur</span>` : 
+            (permList.length > 0 ? permList.map(item => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-purple-300 text-[9px] font-mono border border-purple-500/20">${item}</span>`).join(' ') : `<span class="text-slate-500 text-[10px]">Hanya Live Stream</span>`);
+
+        const isMainAdmin = u.id === 'usr_admin';
+
+        return `
+            <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/30 transition flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                <div class="space-y-1.5 min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-slate-100 text-sm font-tech">${u.display_name || u.username}</span>
+                        <span class="text-slate-400 font-mono text-[11px]">(@${u.username})</span>
+                        ${roleBadge}
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-slate-400 text-[11px]">Kamera Diizinkan:</span>
+                        ${camBadges}
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-slate-400 text-[11px]">Izin Fitur:</span>
+                        ${permsHtml}
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+                    <!-- Copy Magic Share Link -->
+                    <button onclick="copyUserMagicLink('${u.token}', '${u.display_name || u.username}')" 
+                            class="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition" title="Salin Magic Link untuk dikirim via WA">
+                        <i data-lucide="link" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span>Salin Link</span>
+                    </button>
+
+                    <!-- Edit User -->
+                    <button onclick="showEditUserForm('${u.id}')" 
+                            class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Ubah Pengaturan Pengguna">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                    </button>
+
+                    <!-- Reset Token -->
+                    <button onclick="regenerateUserToken('${u.id}', '${u.username}')" 
+                            class="p-1.5 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-400 border border-slate-700 transition" title="Reset Magic Link (Batalkan Link Lama)">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+
+                    <!-- Delete User (Forbidden for Main Admin) -->
+                    ${!isMainAdmin ? `
+                    <button onclick="deleteUserAction('${u.id}', '${u.username}')" 
+                            class="p-1.5 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700 transition" title="Hapus Pengguna">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function showCreateUserForm() {
+    const formContainer = document.getElementById('user-form-container');
+    if (!formContainer) return;
+    document.getElementById('user-form-title').innerHTML = `<i data-lucide="user-plus" class="w-4 h-4"></i> Form Pengguna Baru`;
+    document.getElementById('usr-form-id').value = '';
+    document.getElementById('usr-form-username').value = '';
+    document.getElementById('usr-form-username').disabled = false;
+    document.getElementById('usr-form-display').value = '';
+    document.getElementById('usr-form-password').value = '';
+    document.getElementById('usr-form-pwd-hint').classList.add('hidden');
+    document.getElementById('usr-form-role').value = 'user';
+
+    // Populate camera checkboxes
+    populateCameraCheckboxes(['cam-1']);
+
+    // Permissions defaults for user
+    document.getElementById('perm-ptz').checked = false;
+    document.getElementById('perm-dvr').checked = false;
+    document.getElementById('perm-snapshot').checked = false;
+    document.getElementById('perm-record').checked = false;
+    document.getElementById('perm-audio').checked = true;
+    document.getElementById('perm-gallery').checked = false;
+
+    formContainer.classList.remove('hidden');
+    handleRoleChange('user');
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function showEditUserForm(userId) {
+    const user = state.allUsers.find(u => u.id === userId);
+    if (!user) return;
+
+    const formContainer = document.getElementById('user-form-container');
+    if (!formContainer) return;
+
+    document.getElementById('user-form-title').innerHTML = `<i data-lucide="edit-3" class="w-4 h-4"></i> Edit Pengguna: ${user.display_name || user.username}`;
+    document.getElementById('usr-form-id').value = user.id;
+    document.getElementById('usr-form-username').value = user.username;
+    document.getElementById('usr-form-username').disabled = true; // Username locked
+    document.getElementById('usr-form-display').value = user.display_name || '';
+    document.getElementById('usr-form-password').value = '';
+    document.getElementById('usr-form-pwd-hint').classList.remove('hidden');
+    document.getElementById('usr-form-role').value = user.role;
+
+    // Populate camera checkboxes
+    populateCameraCheckboxes(user.allowed_cameras || []);
+
+    // Permissions
+    const p = user.permissions || {};
+    document.getElementById('perm-ptz').checked = !!p.can_ptz;
+    document.getElementById('perm-dvr').checked = !!p.can_dvr;
+    document.getElementById('perm-snapshot').checked = !!p.can_snapshot;
+    document.getElementById('perm-record').checked = !!p.can_record;
+    document.getElementById('perm-audio').checked = p.can_audio !== false;
+    document.getElementById('perm-gallery').checked = !!p.can_gallery;
+
+    formContainer.classList.remove('hidden');
+    handleRoleChange(user.role);
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function hideUserForm() {
+    const formContainer = document.getElementById('user-form-container');
+    if (formContainer) formContainer.classList.add('hidden');
+}
+
+function handleRoleChange(role) {
+    const camSection = document.getElementById('usr-cameras-section');
+    const permSection = document.getElementById('usr-perms-section');
+    if (role === 'admin') {
+        if (camSection) camSection.classList.add('opacity-50', 'pointer-events-none');
+        if (permSection) permSection.classList.add('opacity-50', 'pointer-events-none');
+    } else {
+        if (camSection) camSection.classList.remove('opacity-50', 'pointer-events-none');
+        if (permSection) permSection.classList.remove('opacity-50', 'pointer-events-none');
+    }
+}
+
+function populateCameraCheckboxes(selectedIds = []) {
+    const container = document.getElementById('usr-camera-checkboxes');
+    if (!container) return;
+
+    const availableCams = [
+        { id: 'cam-1', name: 'CAM 01 - Main Entrance' },
+        { id: 'cam-2', name: 'CAM 02 - Corridor & Hallway' },
+        { id: 'cam-3', name: 'CAM 03 - Backyard & Perimeter' },
+        { id: 'cam-4', name: 'CAM 04 - Ruang Tamu' }
+    ];
+
+    container.innerHTML = availableCams.map(c => {
+        const isChecked = selectedIds.includes('*') || selectedIds.includes(c.id);
+        return `
+            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                <input type="checkbox" value="${c.id}" class="usr-cam-chk rounded bg-slate-800 border-slate-700 text-cyan-400 focus:ring-0" ${isChecked ? 'checked' : ''}>
+                <span class="truncate">${c.name}</span>
+            </label>
+        `;
+    }).join('');
+}
+
+async function saveUserSubmit() {
+    const userId = document.getElementById('usr-form-id').value;
+    const username = document.getElementById('usr-form-username').value.trim();
+    const displayName = document.getElementById('usr-form-display').value.trim();
+    const password = document.getElementById('usr-form-password').value;
+    const role = document.getElementById('usr-form-role').value;
+
+    if (!username) {
+        showToast('Username wajib diisi!', 'error');
+        return;
+    }
+
+    if (!userId && (!password || password.length < 4)) {
+        showToast('Password minimal 4 karakter!', 'error');
+        return;
+    }
+
+    // Checked cameras
+    const checkedCams = [];
+    document.querySelectorAll('.usr-cam-chk:checked').forEach(cb => {
+        checkedCams.push(cb.value);
+    });
+
+    if (role !== 'admin' && checkedCams.length === 0) {
+        showToast('Pilih minimal 1 kamera untuk pengguna ini!', 'error');
+        return;
+    }
+
+    // Permissions
+    const permissions = {
+        can_ptz: document.getElementById('perm-ptz').checked,
+        can_dvr: document.getElementById('perm-dvr').checked,
+        can_snapshot: document.getElementById('perm-snapshot').checked,
+        can_record: document.getElementById('perm-record').checked,
+        can_audio: document.getElementById('perm-audio').checked,
+        can_gallery: document.getElementById('perm-gallery').checked
+    };
+
+    const payload = {
+        username: username,
+        display_name: displayName,
+        role: role,
+        allowed_cameras: role === 'admin' ? ['*'] : checkedCams,
+        permissions: permissions
+    };
+    if (password) {
+        payload.password = password;
+    }
+
+    try {
+        const url = userId ? `/api/auth/users/${userId}` : '/api/auth/users';
+        const method = userId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(userId ? 'Pengguna berhasil diperbarui!' : 'Pengguna baru berhasil dibuat!', 'success');
+            hideUserForm();
+            await loadUsersList();
+        } else {
+            showToast(data.error || 'Gagal menyimpan pengguna', 'error');
+        }
+    } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+    }
+}
+
+async function deleteUserAction(userId, username) {
+    const confirmed = await showConfirmDialog({
+        title: 'Hapus Akses Pengguna',
+        message: `Apakah Anda yakin ingin menghapus akun "${username}"? Hak akses login dan Magic Link mereka akan langsung dicabut seketika.`,
+        confirmText: 'Ya, Hapus Pengguna',
+        cancelText: 'Batal',
+        type: 'danger'
+    });
+    if (!confirmed) return;
+
+    try {
+        const res = await fetch(`/api/auth/users/${userId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Pengguna "${username}" telah berhasil dihapus!`, 'success');
+            await loadUsersList();
+        } else {
+            showToast(data.error || 'Gagal menghapus pengguna', 'error');
+        }
+    } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+    }
+}
+
+async function regenerateUserToken(userId, username) {
+    const confirmed = await showConfirmDialog({
+        title: 'Reset Magic Link',
+        message: `Buat token baru untuk "${username}"? Tautan akses lama yang pernah dibagikan tidak akan dapat digunakan lagi.`,
+        confirmText: 'Reset Link Baru',
+        cancelText: 'Batal',
+        type: 'warning'
+    });
+    if (!confirmed) return;
+
+    try {
+        const res = await fetch(`/api/auth/users/${userId}/regenerate-token`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Token baru untuk "${username}" berhasil dibuat!`, 'success');
+            await loadUsersList();
+        } else {
+            showToast(data.error || 'Gagal mereset token', 'error');
+        }
+    } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+    }
+}
+
+function copyUserMagicLink(token, displayName) {
+    const origin = window.location.origin;
+    const magicLink = `${origin}/?token=${encodeURIComponent(token)}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(magicLink).then(() => {
+            showToast(`Link akses untuk "${displayName}" telah disalin ke clipboard!`, 'success', 'LINK DISALIN');
+        }).catch(() => {
+            showToast(`Gagal menyalin otomatis. Link: ${magicLink}`, 'info', 'TAUTAN AKSES');
+        });
+    } else {
+        showToast(`Tautan Akses: ${magicLink}`, 'info', 'TAUTAN AKSES');
+    }
+}
+
+// ==========================================
+// 20. LOGIN & LOGOUT CONTROLLER
+// ==========================================
+
+function showLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    const errMsg = document.getElementById('login-error-msg');
+    if (errMsg) errMsg.classList.add('hidden');
+    const uInput = document.getElementById('login-username');
+    if (uInput) uInput.focus();
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function closeLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+    const uInput = document.getElementById('login-username');
+    const pInput = document.getElementById('login-password');
+    const errMsg = document.getElementById('login-error-msg');
+    const btn = document.getElementById('btn-login-submit');
+
+    const username = uInput ? uInput.value.trim() : '';
+    const password = pInput ? pInput.value : '';
+
+    if (!username || !password) return;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Memverifikasi...`;
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+            state.currentUser = data.user;
+            state.authToken = data.token;
+            try {
+                localStorage.setItem('cctv_auth_token', data.token);
+            } catch (e) {}
+            closeLoginModal();
+            showToast(`Selamat datang kembali, ${data.user.display_name || data.user.username}!`, 'success', 'AKSES DITERIMA');
+            onAuthenticatedSuccess();
+        } else {
+            if (errMsg) {
+                errMsg.textContent = data.error || 'Username atau password salah!';
+                errMsg.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        if (errMsg) {
+            errMsg.textContent = `Error koneksi: ${e.message}`;
+            errMsg.classList.remove('hidden');
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="log-in" class="w-4 h-4"></i> Masuk ke Sistem`;
+            if (window.lucide && lucide.createIcons) lucide.createIcons();
+        }
+    }
+}
+
+async function handleLogout() {
+    const confirmed = await showConfirmDialog({
+        title: 'Konfirmasi Keluar',
+        message: 'Apakah Anda yakin ingin keluar dari sistem CCTV Command Center?',
+        confirmText: 'Ya, Keluar',
+        cancelText: 'Tetap di Sini',
+        type: 'danger'
+    });
+    if (!confirmed) return;
+
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+
+    state.currentUser = null;
+    state.authToken = '';
+    try {
+        localStorage.removeItem('cctv_auth_token');
+    } catch (e) {}
+
+    // Clean up current streams
+    state.cameras = [];
+    renderCameraGrid();
+    showLoginModal();
+    showToast('Anda telah keluar dari sesi sistem pengawasan.', 'info', 'LOGOUT');
+}
+
+// ==========================================
+// 21. INITIALIZE ON DOM READY
+// ==========================================
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Restore layout and setup wakelock & clock
+    setLayout(state.currentLayout);
+    requestWakeLock();
+    updateClock();
+    state.clockInterval = setInterval(updateClock, 1000);
+
+    // 2. Check for token in URL query parameter (?token=xyz)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenInUrl = urlParams.get('token');
+    if (tokenInUrl) {
+        state.authToken = tokenInUrl;
+        try {
+            localStorage.setItem('cctv_auth_token', tokenInUrl);
+        } catch (e) {}
+    }
+
+    // 3. Verify authentication status
+    const isAuth = await checkAuthStatus();
+    if (!isAuth) {
+        showLoginModal();
+    } else {
+        onAuthenticatedSuccess();
+    }
 });

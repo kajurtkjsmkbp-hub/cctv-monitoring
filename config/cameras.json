@@ -9,7 +9,7 @@
     "rtsp_hd_url": "rtsp://192.168.1.65/live/ch00_0",
     "type": "onvif",
     "has_ptz": true,
-    "stream_quality": "sub",
+    "stream_quality": "hd",
     "motion_detection": true,
     "filter": "normal",
     "enabled": true

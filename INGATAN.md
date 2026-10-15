@@ -73,6 +73,10 @@ Semua kamera adalah kamera fisik tipe **macro-video-soft IPCamera (V380 / ONVIF 
    * Manajemen database biometrik wajah terdaftar (`config/known_faces.json`).
 6. **`settings_manager.py`**:
    * Konfigurasi sistem (`config/settings.json`) termasuk bot Telegram, arming schedule, dan batas retensi storage.
+7. **`auth_manager.py` (RBAC & Multi-User Access Management)**:
+   * Mengatur akun pengguna, password terenkripsi PBKDF2-HMAC-SHA256, hak akses per kamera (`allowed_cameras`), dan izin fitur (`can_ptz`, `can_dvr`, `can_snapshot`, `can_record`, `can_audio`, `can_gallery`).
+   * **Magic Share Link / Direct Token:** Setiap user memiliki token URL unik (`http://<ip>:5000/?token=...`) sehingga pemilik bisa membagikan link khusus via WhatsApp untuk langsung membuka kamera tertentu tanpa perlu ketik username/password.
+   * **Backend Stream Lockdown:** Endpoint `/stream/<cam_id>`, `/api/frame/<cam_id>`, `/stream_dvr/<cam_id>`, `/api/ptz/...` dll. secara ketat memblokir dengan `403 Forbidden` jika user mencoba mengakses kamera di luar izin mereka.
 
 ### B. Frontend JavaScript & CSS
 1. **`templates/index.html`**:

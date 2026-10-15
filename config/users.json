@@ -1,0 +1,68 @@
+[
+  {
+    "id": "usr_admin",
+    "username": "admin",
+    "display_name": "Pemilik (Super Admin)",
+    "password_hash": "781b27c0c76b207cb776fddd9bae45ca$f44798b128421817dc575b28dc09ab8f39c1613109f75d3f0711850b8218c182",
+    "role": "admin",
+    "allowed_cameras": [
+      "*"
+    ],
+    "permissions": {
+      "can_ptz": true,
+      "can_dvr": true,
+      "can_snapshot": true,
+      "can_record": true,
+      "can_audio": true,
+      "can_gallery": true,
+      "can_settings": true
+    },
+    "token": "admin_W60nCoGRt33fNyun2n2GfA",
+    "active": true,
+    "created_at": "2026-10-15 16:45:42"
+  },
+  {
+    "id": "usr_1c60998283aa",
+    "username": "user_a",
+    "display_name": "Tamu A (Kamar Depan)",
+    "password_hash": "005db92d241eebc834462920c66dda52$93301214ebed4c82f787f130cb7026c0b98c9a2263ef0132db05c35afa499634",
+    "role": "user",
+    "allowed_cameras": [
+      "cam-1"
+    ],
+    "permissions": {
+      "can_ptz": false,
+      "can_dvr": false,
+      "can_snapshot": false,
+      "can_record": false,
+      "can_audio": true,
+      "can_gallery": false,
+      "can_settings": false
+    },
+    "token": "VYej1-WmAGf3KG--ni0dthzPb1w",
+    "active": true,
+    "created_at": "2026-10-15 16:54:18"
+  },
+  {
+    "id": "usr_792ab3b37c1b",
+    "username": "ipung",
+    "display_name": "ipung",
+    "password_hash": "61e8df52651e56d2aa949b73387d73b8$00a0e22f1525df44824e6de4579d40f6f2821e455c62157e3d2c30b3c1f28092",
+    "role": "user",
+    "allowed_cameras": [
+      "cam-1"
+    ],
+    "permissions": {
+      "can_ptz": false,
+      "can_dvr": false,
+      "can_snapshot": false,
+      "can_record": false,
+      "can_audio": true,
+      "can_gallery": false,
+      "can_settings": false
+    },
+    "token": "obvdpfSUK8_1hPSnJqVm8HEkqbQ",
+    "active": true,
+    "created_at": "2026-10-15 17:19:49"
+  }
+]

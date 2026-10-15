@@ -1,6 +1,6 @@
 """
 Khanza.NET Vision - Next-Gen CCTV & ONVIF Command Center
-Main Flask Backend Server
+Main Flask Backend Server with Role-Based Access Control (RBAC) & Multi-User Management
 """
 
 import os
@@ -11,22 +11,162 @@ import cv2
 import numpy as np
 import subprocess
 from datetime import datetime
-from flask import Flask, render_template, Response, request, jsonify, send_from_directory
+from functools import wraps
+from flask import Flask, render_template, Response, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 
 from camera_manager import CameraManager, SNAPSHOT_DIR, RECORDING_DIR, EVENT_DIR
 from onvif_scanner import scan_network_onvif, get_camera_onvif_details
 from settings_manager import settings_mgr
 from face_recognition_manager import face_recognition_mgr
+from auth_manager import auth_mgr
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "khanza-vision-secret-key-cctv-2026-pro")
 CORS(app)
 
 camera_manager = CameraManager()
 
+# ==========================================
+# AUTHENTICATION & ACCESS CONTROL HELPERS
+# ==========================================
+
+def get_current_user():
+    """
+    Identifies the authenticated user through:
+    1. Query param ?token=... or Header X-Auth-Token / Bearer Token (Magic Link / API)
+    2. Flask Session cookie
+    """
+    token = request.args.get("token") or request.headers.get("X-Auth-Token")
+    if not token and request.headers.get("Authorization"):
+        auth_h = request.headers.get("Authorization", "")
+        if auth_h.startswith("Bearer "):
+            token = auth_h[7:].strip()
+
+    if token:
+        user = auth_mgr.get_user_by_token(token)
+        if user and user.get("active", True):
+            return user
+
+    user_id = session.get("user_id")
+    if user_id:
+        user = auth_mgr.get_user_by_id(user_id)
+        if user and user.get("active", True):
+            return user
+
+    return None
+
+def require_auth(permission=None, admin_only=False):
+    """Decorator to enforce login, role, or feature permission on API endpoints."""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            user = get_current_user()
+            if not user:
+                return jsonify({"success": False, "error": "Autentikasi diperlukan. Silakan login."}), 401
+            if admin_only and user.get("role") != "admin":
+                return jsonify({"success": False, "error": "Akses ditolak: Hanya untuk Pemilik / Super Admin."}), 403
+            if permission and not auth_mgr.has_permission(user, permission):
+                return jsonify({"success": False, "error": f"Fitur '{permission}' dinonaktifkan untuk akun Anda."}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def check_camera_access(cam_id, required_perm=None):
+    """Validates user rights to access a specific camera ID and optional feature."""
+    user = get_current_user()
+    if not user:
+        return False, ("Autentikasi diperlukan. Silakan login.", 401), None
+    if not auth_mgr.can_access_camera(user, cam_id):
+        return False, (f"Akses ditolak: Kamera '{cam_id}' tidak diizinkan untuk akun Anda.", 403), user
+    if required_perm and not auth_mgr.has_permission(user, required_perm):
+        return False, (f"Fitur '{required_perm}' dinonaktifkan untuk akun Anda.", 403), user
+    return True, None, user
+
+
+# ==========================================
+# WEB PAGE & AUTHENTICATION ROUTES
+# ==========================================
+
 @app.route("/")
 def index():
+    # If accessed with ?token=..., automatically set session
+    token = request.args.get("token")
+    if token:
+        user = auth_mgr.get_user_by_token(token)
+        if user and user.get("active", True):
+            session["user_id"] = user["id"]
     return render_template("index.html")
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.get_json() or {}
+    username = str(data.get("username", "")).strip()
+    password = str(data.get("password", "")).strip()
+    user = auth_mgr.authenticate(username, password)
+    if user:
+        session["user_id"] = user["id"]
+        return jsonify({"success": True, "user": user, "token": user.get("token")})
+    return jsonify({"success": False, "error": "Username atau password salah!"}), 401
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    session.pop("user_id", None)
+    return jsonify({"success": True})
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    user = get_current_user()
+    if user:
+        return jsonify({"success": True, "authenticated": True, "user": user})
+    return jsonify({"success": True, "authenticated": False, "user": None})
+
+# ==========================================
+# USER MANAGEMENT ROUTES (ADMIN ONLY)
+# ==========================================
+
+@app.route("/api/auth/users", methods=["GET"])
+@require_auth(admin_only=True)
+def list_users():
+    return jsonify({"success": True, "users": auth_mgr.get_all_users()})
+
+@app.route("/api/auth/users", methods=["POST"])
+@require_auth(admin_only=True)
+def create_user():
+    data = request.get_json() or {}
+    res = auth_mgr.create_user(
+        username=data.get("username", ""),
+        password=data.get("password", ""),
+        display_name=data.get("display_name", ""),
+        role=data.get("role", "user"),
+        allowed_cameras=data.get("allowed_cameras", ["cam-1"]),
+        permissions=data.get("permissions")
+    )
+    return jsonify(res), (200 if res.get("success") else 400)
+
+@app.route("/api/auth/users/<user_id>", methods=["PUT"])
+@require_auth(admin_only=True)
+def update_user(user_id):
+    data = request.get_json() or {}
+    res = auth_mgr.update_user(user_id, data)
+    return jsonify(res), (200 if res.get("success") else 400)
+
+@app.route("/api/auth/users/<user_id>", methods=["DELETE"])
+@require_auth(admin_only=True)
+def delete_user(user_id):
+    res = auth_mgr.delete_user(user_id)
+    return jsonify(res), (200 if res.get("success") else 400)
+
+@app.route("/api/auth/users/<user_id>/regenerate-token", methods=["POST"])
+@require_auth(admin_only=True)
+def regenerate_user_token(user_id):
+    res = auth_mgr.regenerate_token(user_id)
+    return jsonify(res), (200 if res.get("success") else 400)
+
+
+# ==========================================
+# VIDEO STREAM & FRAME ENDPOINTS
+# ==========================================
 
 def gen_frames(cam_id):
     worker = camera_manager.get_worker(cam_id)
@@ -45,6 +185,10 @@ def gen_frames(cam_id):
 
 @app.route("/stream/<cam_id>")
 def stream_camera(cam_id):
+    allowed, err, _ = check_camera_access(cam_id)
+    if not allowed:
+        return Response(err[0], status=err[1], mimetype="text/plain")
+
     resp = Response(gen_frames(cam_id),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
     resp.headers['Cache-Control'] = 'no-cache, private'
@@ -53,6 +197,10 @@ def stream_camera(cam_id):
 
 @app.route("/api/frame/<cam_id>")
 def get_single_frame(cam_id):
+    allowed, err, _ = check_camera_access(cam_id)
+    if not allowed:
+        return Response(err[0], status=err[1], mimetype="text/plain")
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return "Camera not found", 404
@@ -64,6 +212,10 @@ def get_single_frame(cam_id):
 
 @app.route("/api/dvr_frame/<cam_id>")
 def get_dvr_frame_endpoint(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_dvr")
+    if not allowed:
+        return Response(err[0], status=err[1], mimetype="text/plain")
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return "Camera not found", 404
@@ -108,17 +260,36 @@ def gen_dvr_replay(cam_id, offset):
 
 @app.route("/stream_dvr/<cam_id>")
 def stream_dvr(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_dvr")
+    if not allowed:
+        return Response(err[0], status=err[1], mimetype="text/plain")
+
     offset = float(request.args.get("offset", 10))
     resp = Response(gen_dvr_replay(cam_id, offset),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
     resp.headers['Cache-Control'] = 'no-cache, private'
     return resp
 
+
+# ==========================================
+# CAMERA MANAGEMENT & STATUS APIS
+# ==========================================
+
 @app.route("/api/cameras", methods=["GET"])
 def get_cameras():
-    return jsonify({"cameras": camera_manager.get_camera_list()})
+    user = get_current_user()
+    all_cams = camera_manager.get_camera_list()
+    if not user:
+        return jsonify({"cameras": []})
+    if user.get("role") == "admin":
+        return jsonify({"cameras": all_cams})
+    
+    allowed = user.get("allowed_cameras", [])
+    filtered = [c for c in all_cams if (c.get("id") in allowed or "*" in allowed)]
+    return jsonify({"cameras": filtered})
 
 @app.route("/api/cameras", methods=["POST"])
+@require_auth(admin_only=True)
 def add_camera():
     data = request.get_json() or {}
     if not data.get("name"):
@@ -127,6 +298,7 @@ def add_camera():
     return jsonify({"success": True, "camera": created})
 
 @app.route("/api/cameras/<cam_id>", methods=["PUT"])
+@require_auth(admin_only=True)
 def update_camera(cam_id):
     data = request.get_json() or {}
     updated = camera_manager.update_camera(cam_id, data)
@@ -135,12 +307,17 @@ def update_camera(cam_id):
     return jsonify({"success": False, "error": "Camera not found"}), 404
 
 @app.route("/api/cameras/<cam_id>", methods=["DELETE"])
+@require_auth(admin_only=True)
 def delete_camera(cam_id):
     res = camera_manager.delete_camera(cam_id)
     return jsonify({"success": res})
 
 @app.route("/api/cameras/<cam_id>/stream-quality", methods=["POST"])
 def toggle_quality(cam_id):
+    allowed, err, _ = check_camera_access(cam_id)
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     data = request.get_json() or {}
     quality = data.get("quality", "sub") # 'sub' or 'hd'
     updated = camera_manager.update_camera(cam_id, {"stream_quality": quality})
@@ -148,12 +325,17 @@ def toggle_quality(cam_id):
 
 @app.route("/api/cameras/<cam_id>/filter", methods=["POST"])
 def set_filter(cam_id):
+    allowed, err, _ = check_camera_access(cam_id)
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     data = request.get_json() or {}
     f_mode = data.get("filter", "normal") # normal, night, thermal, bw
     updated = camera_manager.update_camera(cam_id, {"filter": f_mode})
     return jsonify({"success": bool(updated), "filter": f_mode})
 
 @app.route("/api/cameras/<cam_id>/toggle-motion", methods=["POST"])
+@require_auth(admin_only=True)
 def toggle_motion(cam_id):
     data = request.get_json() or {}
     enabled = data.get("enabled", True)
@@ -161,6 +343,7 @@ def toggle_motion(cam_id):
     return jsonify({"success": bool(updated), "motion_detection": enabled})
 
 @app.route("/api/scan", methods=["POST", "GET"])
+@require_auth(admin_only=True)
 def scan_network():
     req_data = request.get_json() if request.is_json else {}
     prefix = req_data.get("prefix", "192.168.1.")
@@ -170,11 +353,13 @@ def scan_network():
     return jsonify({"success": True, "count": len(discovered), "devices": discovered})
 
 @app.route("/api/auto-heal", methods=["POST", "GET"])
+@require_auth(admin_only=True)
 def trigger_auto_heal():
     res = camera_manager.auto_heal_dhcp_ips()
     return jsonify(res)
 
 @app.route("/api/network/route-fix", methods=["POST", "GET"])
+@require_auth(admin_only=True)
 def fix_network_routes():
     import platform
     diag = {"system": platform.system()}
@@ -190,8 +375,17 @@ def fix_network_routes():
         CameraManager.ensure_network_routes()
     return jsonify({"success": True, "diagnostics": diag})
 
+
+# ==========================================
+# PTZ CAMERA CONTROLS (GUARDED)
+# ==========================================
+
 @app.route("/api/ptz/<cam_id>/nudge", methods=["POST"])
 def ptz_nudge(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_ptz")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker or not worker.ptz:
         return jsonify({"success": False, "error": "PTZ not supported on this camera"}), 400
@@ -204,6 +398,10 @@ def ptz_nudge(cam_id):
 
 @app.route("/api/ptz/<cam_id>/continuous", methods=["POST"])
 def ptz_continuous(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_ptz")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker or not worker.ptz:
         return jsonify({"success": False, "error": "PTZ not supported on this camera"}), 400
@@ -217,14 +415,27 @@ def ptz_continuous(cam_id):
 
 @app.route("/api/ptz/<cam_id>/stop", methods=["POST"])
 def ptz_stop(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_ptz")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker or not worker.ptz:
         return jsonify({"success": False, "error": "PTZ not supported on this camera"}), 400
     res = worker.ptz.stop()
     return jsonify(res)
 
+
+# ==========================================
+# SNAPSHOT & MANUAL RECORDING (GUARDED)
+# ==========================================
+
 @app.route("/api/snapshot/<cam_id>", methods=["POST"])
 def take_snapshot(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_snapshot")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return jsonify({"success": False, "error": "Camera not found"}), 404
@@ -233,6 +444,10 @@ def take_snapshot(cam_id):
 
 @app.route("/api/record/<cam_id>/start", methods=["POST"])
 def start_record(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_record")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return jsonify({"success": False, "error": "Camera not found"}), 404
@@ -241,18 +456,36 @@ def start_record(cam_id):
 
 @app.route("/api/record/<cam_id>/stop", methods=["POST"])
 def stop_record(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_record")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return jsonify({"success": False, "error": "Camera not found"}), 404
     res = worker.stop_recording()
     return jsonify(res)
 
+
+# ==========================================
+# GALLERY & TIMELINE (PERMITTED CAMERAS)
+# ==========================================
+
 @app.route("/api/gallery", methods=["GET"])
 def get_gallery():
+    user = get_current_user()
+    if not user or not auth_mgr.has_permission(user, "can_gallery"):
+        return jsonify({"items": []})
+
     items = camera_manager.get_gallery_items()
+    if user.get("role") != "admin":
+        allowed = user.get("allowed_cameras", [])
+        items = [it for it in items if (it.get("cam_id") in allowed or "*" in allowed)]
+
     return jsonify({"items": items})
 
 @app.route("/api/gallery/delete", methods=["POST"])
+@require_auth(admin_only=True)
 def delete_gallery_item():
     data = request.get_json() or {}
     fn = data.get("filename", "")
@@ -270,11 +503,21 @@ def delete_gallery_item():
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
-    cams = camera_manager.get_camera_list()
+    user = get_current_user()
+    all_cams = camera_manager.get_camera_list()
+    if not user:
+        return jsonify({"total_cameras": 0, "online_cameras": 0, "cameras": []})
+
+    if user.get("role") != "admin":
+        allowed = user.get("allowed_cameras", [])
+        cams = [c for c in all_cams if (c.get("id") in allowed or "*" in allowed)]
+    else:
+        cams = all_cams
+
     online = sum(1 for c in cams if c.get("connected"))
     motion_cams = [c["id"] for c in cams if c.get("motion")]
     rec_cams = [c["id"] for c in cams if c.get("is_recording")]
-    gallery_count = len(camera_manager.get_gallery_items())
+    gallery_count = len(camera_manager.get_gallery_items()) if auth_mgr.has_permission(user, "can_gallery") else 0
     
     return jsonify({
         "total_cameras": len(cams),
@@ -288,6 +531,10 @@ def get_stats():
 
 @app.route("/api/audio/<cam_id>")
 def get_cam_audio(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_audio")
+    if not allowed:
+        return jsonify({"success": False, "error": err[0]}), err[1]
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return jsonify({"success": False, "error": "Camera not found"}), 404
@@ -300,6 +547,10 @@ def get_cam_audio(cam_id):
 
 @app.route("/api/audio_stream/<cam_id>")
 def stream_camera_audio(cam_id):
+    allowed, err, _ = check_camera_access(cam_id, required_perm="can_audio")
+    if not allowed:
+        return Response(err[0], status=err[1], mimetype="text/plain")
+
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return "Camera not found", 404
@@ -338,25 +589,30 @@ def stream_camera_audio(cam_id):
     return Response(generate_mp3(), mimetype="audio/mpeg")
 
 @app.route("/api/settings", methods=["GET"])
+@require_auth(admin_only=True)
 def get_settings():
     return jsonify({"success": True, "settings": settings_mgr.settings})
 
 @app.route("/api/settings", methods=["POST"])
+@require_auth(admin_only=True)
 def update_settings():
     data = request.get_json() or {}
     updated = settings_mgr.update(data)
     return jsonify({"success": True, "settings": updated})
 
 @app.route("/api/settings/test-telegram", methods=["POST"])
+@require_auth(admin_only=True)
 def test_telegram_route():
     res = settings_mgr.test_telegram()
     return jsonify(res)
 
 @app.route("/api/storage", methods=["GET"])
+@require_auth(admin_only=True)
 def get_storage_stats():
     return jsonify(camera_manager.get_storage_stats())
 
 @app.route("/api/storage/cleanup", methods=["POST"])
+@require_auth(admin_only=True)
 def trigger_storage_cleanup():
     purged = camera_manager.cleanup_old_files()
     return jsonify({"success": True, "purged": purged, "stats": camera_manager.get_storage_stats()})
@@ -371,8 +627,9 @@ def verify_pin():
         return jsonify({"success": True, "valid": True})
     return jsonify({"success": True, "valid": (pin == correct_pin)})
 
+
 # ==========================================
-# 1. PWA MANIFEST & SERVICE WORKER
+# PWA MANIFEST & SERVICE WORKER
 # ==========================================
 @app.route("/manifest.json")
 def pwa_manifest():
@@ -382,14 +639,17 @@ def pwa_manifest():
 def pwa_sw():
     return send_from_directory("static", "sw.js", mimetype="application/javascript")
 
+
 # ==========================================
-# 2. AI FACE RECOGNITION API
+# AI FACE RECOGNITION API (ADMIN ONLY)
 # ==========================================
 @app.route("/api/faces", methods=["GET"])
+@require_auth(admin_only=True)
 def get_faces():
     return jsonify({"success": True, "faces": face_recognition_mgr.get_faces_list()})
 
 @app.route("/api/faces", methods=["POST"])
+@require_auth(admin_only=True)
 def register_face():
     data = request.get_json() or {}
     name = data.get("name", "").strip()
@@ -423,22 +683,26 @@ def register_face():
     return jsonify(res)
 
 @app.route("/api/faces/<face_id>", methods=["DELETE"])
+@require_auth(admin_only=True)
 def delete_face(face_id):
     res = face_recognition_mgr.delete_face(face_id)
     return jsonify(res)
 
+
 # ==========================================
-# 3. PRIVACY MASKS API
+# PRIVACY MASKS API (ADMIN ONLY)
 # ==========================================
 @app.route("/api/cameras/<cam_id>/privacy-masks", methods=["POST"])
+@require_auth(admin_only=True)
 def set_privacy_masks(cam_id):
     data = request.get_json() or {}
     masks = data.get("masks", [])
     updated = camera_manager.update_camera(cam_id, {"privacy_masks": masks})
     return jsonify({"success": bool(updated), "privacy_masks": masks})
 
+
 # ==========================================
-# 4. ARMING & SECURITY SCHEDULE API
+# ARMING & SECURITY SCHEDULE API (ADMIN ONLY)
 # ==========================================
 @app.route("/api/arming/status", methods=["GET"])
 def get_arming_status():
@@ -451,6 +715,7 @@ def get_arming_status():
     })
 
 @app.route("/api/arming/toggle", methods=["POST"])
+@require_auth(admin_only=True)
 def toggle_arming():
     cur_mode = settings_mgr.get("arming_mode", "auto")
     next_modes = {"auto": "always_armed", "always_armed": "disarmed", "disarmed": "auto"}
@@ -462,17 +727,27 @@ def toggle_arming():
         "is_armed": settings_mgr.is_armed()
     })
 
+
 # ==========================================
-# 5. SMART 24-HOUR VIDEO TIMELINE API
+# SMART 24-HOUR VIDEO TIMELINE API
 # ==========================================
 @app.route("/api/timeline", methods=["GET"])
 def get_timeline():
+    user = get_current_user()
+    if not user or not auth_mgr.has_permission(user, "can_gallery"):
+        return jsonify({"success": True, "date": "", "total_events": 0, "events": []})
+
     target_date = request.args.get("date", datetime.now().strftime("%Y-%m-%d"))
     date_str = target_date.replace("-", "")
 
     items = camera_manager.get_gallery_items()
+    allowed = user.get("allowed_cameras", []) if user.get("role") != "admin" else ["*"]
+    
     day_items = []
     for it in items:
+        cam_id = it.get("cam_id")
+        if "*" not in allowed and cam_id not in allowed:
+            continue
         ts = it.get("created_at", "")
         if ts.startswith(target_date) or date_str in it.get("filename", ""):
             day_items.append(it)
