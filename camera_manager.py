@@ -386,8 +386,9 @@ class CameraWorker:
                 self.motion_detected = True
                 self.last_motion_time = now
                 self.motion_contours = detected_objects
-                # Auto record motion event snapshot asynchronously (zero thread blocking)
-                if now - self.last_event_save_time > 10.0:
+                # Smart cooldown: 15s for Person/Vehicle, 35s for generic Motion to prevent disk thrashing
+                cooldown_event = 15.0 if dominant_event in ["PERSON", "VEHICLE"] else 35.0
+                if now - self.last_event_save_time > cooldown_event:
                     self.last_event_save_time = now
                     f_snap = frame.copy()
                     threading.Thread(target=self._async_event_save, args=(f_snap, dominant_event), daemon=True).start()
@@ -811,6 +812,8 @@ class CameraManager:
         self.workers = {}
         self.cameras = self.load_config()
         self._init_workers()
+        self.gallery_count_cache = 0
+        self.last_gallery_count_time = 0
         self.heal_thread = threading.Thread(target=self._auto_heal_daemon, daemon=True)
         self.heal_thread.start()
 
@@ -882,45 +885,66 @@ class CameraManager:
             del self.workers[cam_id]
         return True
 
-    def get_gallery_items(self):
+    def get_gallery_count(self):
+        """Ultra-fast cached gallery counter to avoid disk I/O lockup on repeated polling."""
+        now = time.time()
+        if now - self.last_gallery_count_time < 10.0:
+            return self.gallery_count_cache
+        self.last_gallery_count_time = now
+        count = 0
+        for d in [SNAPSHOT_DIR, RECORDING_DIR, EVENT_DIR]:
+            if os.path.exists(d):
+                try:
+                    count += len(os.listdir(d))
+                except Exception:
+                    pass
+        self.gallery_count_cache = count
+        return count
+
+    def get_gallery_items(self, limit=100):
+        """Fast gallery list with scandir and maximum item limit to protect system memory."""
         items = []
-        # Snapshots
-        if os.path.exists(SNAPSHOT_DIR):
-            for fn in sorted(os.listdir(SNAPSHOT_DIR), reverse=True):
-                if fn.endswith((".jpg", ".jpeg", ".png")):
-                    fp = os.path.join(SNAPSHOT_DIR, fn)
-                    items.append({
-                        "type": "snapshot",
-                        "filename": fn,
-                        "url": f"/static/snapshots/{fn}",
-                        "size": os.path.getsize(fp),
-                        "timestamp": os.path.getmtime(fp)
-                    })
-        # Recordings
-        if os.path.exists(RECORDING_DIR):
-            for fn in sorted(os.listdir(RECORDING_DIR), reverse=True):
-                if fn.endswith((".mp4", ".avi", ".mkv")):
-                    fp = os.path.join(RECORDING_DIR, fn)
-                    items.append({
-                        "type": "recording",
-                        "filename": fn,
-                        "url": f"/static/recordings/{fn}",
-                        "size": os.path.getsize(fp),
-                        "timestamp": os.path.getmtime(fp)
-                    })
-        # Motion events
-        if os.path.exists(EVENT_DIR):
-            for fn in sorted(os.listdir(EVENT_DIR), reverse=True):
-                if fn.endswith((".jpg", ".jpeg")):
-                    fp = os.path.join(EVENT_DIR, fn)
-                    items.append({
-                        "type": "event",
-                        "filename": fn,
-                        "url": f"/static/events/{fn}",
-                        "size": os.path.getsize(fp),
-                        "timestamp": os.path.getmtime(fp)
-                    })
-        return sorted(items, key=lambda x: x["timestamp"], reverse=True)
+        for target_dir, itype in [(SNAPSHOT_DIR, "snapshot"), (RECORDING_DIR, "recording"), (EVENT_DIR, "event")]:
+            if not os.path.exists(target_dir):
+                continue
+            try:
+                with os.scandir(target_dir) as entries:
+                    for entry in entries:
+                        if not entry.is_file():
+                            continue
+                        fn = entry.name
+                        if itype == "snapshot" and fn.endswith((".jpg", ".jpeg", ".png")):
+                            st = entry.stat()
+                            items.append({
+                                "type": "snapshot",
+                                "filename": fn,
+                                "url": f"/static/snapshots/{fn}",
+                                "size": st.st_size,
+                                "timestamp": st.st_mtime
+                            })
+                        elif itype == "recording" and fn.endswith((".mp4", ".avi", ".mkv")):
+                            st = entry.stat()
+                            items.append({
+                                "type": "recording",
+                                "filename": fn,
+                                "url": f"/static/recordings/{fn}",
+                                "size": st.st_size,
+                                "timestamp": st.st_mtime
+                            })
+                        elif itype == "event" and fn.endswith((".jpg", ".jpeg")):
+                            st = entry.stat()
+                            items.append({
+                                "type": "event",
+                                "filename": fn,
+                                "url": f"/static/events/{fn}",
+                                "size": st.st_size,
+                                "timestamp": st.st_mtime
+                            })
+            except Exception:
+                pass
+
+        items.sort(key=lambda x: x["timestamp"], reverse=True)
+        return items[:limit] if limit else items
 
     def get_storage_stats(self):
         try:
@@ -936,10 +960,13 @@ class CameraManager:
             total_b = 0
             count = 0
             if os.path.exists(path):
-                for f in os.scandir(path):
-                    if f.is_file():
-                        total_b += f.stat().st_size
-                        count += 1
+                try:
+                    for f in os.scandir(path):
+                        if f.is_file():
+                            total_b += f.stat().st_size
+                            count += 1
+                except Exception:
+                    pass
             return round(total_b / (1024 ** 2), 2), count # MB, count
 
         snap_mb, snap_count = dir_size(SNAPSHOT_DIR)
@@ -951,43 +978,62 @@ class CameraManager:
             "used_gb": used_gb,
             "free_gb": free_gb,
             "used_percent": used_pct,
-            "retention_days": settings_mgr.get("storage_retention_days", 14),
-            "max_percent": settings_mgr.get("storage_max_percent", 90),
+            "retention_days": settings_mgr.get("storage_retention_days", 3),
+            "max_percent": settings_mgr.get("storage_max_percent", 80),
             "snapshots": {"size_mb": snap_mb, "count": snap_count},
             "recordings": {"size_mb": rec_mb, "count": rec_count},
             "events": {"size_mb": event_mb, "count": event_count}
         }
 
     def cleanup_old_files(self):
-        """FIFO auto-purge based on retention days and max disk usage percentage."""
-        retention_days = settings_mgr.get("storage_retention_days", 14)
-        max_pct = settings_mgr.get("storage_max_percent", 90)
+        """FIFO auto-purge based on retention days, max file count, and disk capacity threshold."""
+        retention_days = int(settings_mgr.get("storage_retention_days", 3))
+        max_pct = float(settings_mgr.get("storage_max_percent", 80))
         cutoff_time = time.time() - (retention_days * 86400)
         purged = 0
 
         all_files = []
+        event_files = []
         for target_dir in [RECORDING_DIR, EVENT_DIR, SNAPSHOT_DIR]:
             if not os.path.exists(target_dir):
                 continue
-            for fname in os.listdir(target_dir):
-                fp = os.path.join(target_dir, fname)
-                if os.path.isfile(fp):
-                    mtime = os.path.getmtime(fp)
-                    if mtime < cutoff_time:
-                        try:
-                            os.remove(fp)
-                            purged += 1
-                        except Exception:
-                            pass
-                    else:
-                        all_files.append((fp, mtime, os.path.getsize(fp)))
+            try:
+                for fname in os.listdir(target_dir):
+                    fp = os.path.join(target_dir, fname)
+                    if os.path.isfile(fp):
+                        mtime = os.path.getmtime(fp)
+                        if mtime < cutoff_time:
+                            try:
+                                os.remove(fp)
+                                purged += 1
+                            except Exception:
+                                pass
+                        else:
+                            sz = os.path.getsize(fp)
+                            item = (fp, mtime, sz)
+                            all_files.append(item)
+                            if target_dir == EVENT_DIR:
+                                event_files.append(item)
+            except Exception:
+                pass
+
+        # Cap maximum event snapshots to 1,000 files to prevent filesystem metadata starvation
+        MAX_EVENT_FILES = 1000
+        if len(event_files) > MAX_EVENT_FILES:
+            event_files.sort(key=lambda x: x[1]) # oldest first
+            to_delete = len(event_files) - MAX_EVENT_FILES
+            for fp, mtime, sz in event_files[:to_delete]:
+                try:
+                    os.remove(fp)
+                    purged += 1
+                except Exception:
+                    pass
 
         # Check disk capacity threshold
         try:
             total, used, free = shutil.disk_usage(BASE_DIR)
             cur_pct = (used / total) * 100
             if cur_pct > max_pct:
-                # FIFO purge oldest files first
                 all_files.sort(key=lambda x: x[1])
                 for fp, mtime, sz in all_files:
                     try:
@@ -995,13 +1041,14 @@ class CameraManager:
                         purged += 1
                     except Exception:
                         pass
-                    # Recheck disk usage
                     t, u, f = shutil.disk_usage(BASE_DIR)
-                    if (u / t) * 100 <= (max_pct - 3):
+                    if (u / t) * 100 <= (max_pct - 5):
                         break
         except Exception:
             pass
 
+        # Refresh cached count
+        self.last_gallery_count_time = 0
         return purged
 
     def _auto_heal_daemon(self):
@@ -1010,9 +1057,9 @@ class CameraManager:
         while True:
             time.sleep(25)
             try:
-                # Periodic FIFO storage cleanup (every ~10 minutes)
+                # Periodic FIFO storage cleanup (every ~5 minutes)
                 cleanup_counter += 1
-                if cleanup_counter >= 24:
+                if cleanup_counter >= 12:
                     cleanup_counter = 0
                     self.cleanup_old_files()
 

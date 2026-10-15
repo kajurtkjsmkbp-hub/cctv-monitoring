@@ -26,8 +26,8 @@ DEFAULT_SETTINGS = {
     "face_zoom_threshold": 50,  # Percentage 30% - 95%, default 50%
     "face_zoom_duration": 2.0,  # Duration in seconds, default 2.0s
     "face_zoom_cooldown": 4.0,
-    "storage_retention_days": 14,
-    "storage_max_percent": 90,
+    "storage_retention_days": 3,
+    "storage_max_percent": 80,
     "arming_mode": "auto",  # 'auto', 'always_armed', 'disarmed'
     "arming_start_time": "22:00",
     "arming_end_time": "06:00",

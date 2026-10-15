@@ -517,7 +517,7 @@ def get_stats():
     online = sum(1 for c in cams if c.get("connected"))
     motion_cams = [c["id"] for c in cams if c.get("motion")]
     rec_cams = [c["id"] for c in cams if c.get("is_recording")]
-    gallery_count = len(camera_manager.get_gallery_items()) if auth_mgr.has_permission(user, "can_gallery") else 0
+    gallery_count = camera_manager.get_gallery_count() if auth_mgr.has_permission(user, "can_gallery") else 0
     
     return jsonify({
         "total_cameras": len(cams),

@@ -137,10 +137,16 @@ ip route add 192.168.50.0/24 via 192.168.1.64
 ```
 
 ### Mount Harddisk Eksternal Proxmox ke Folder Rekaman:
-Di host Proxmox VE (file `/etc/pve/lxc/<ID_CONTAINER>.conf`):
-```text
-mp0: /mnt/pve/hdd-cctv,mp=/opt/cctv-monitoring/static/recordings
-```
+### ⚠️ Panduan Stabilitas & Pencegahan Hang di Proxmox LXC:
+1. **Penyebab Utama Hang yang Terdeteksi:**
+   - **Disk I/O Wait Thrashing (100% iowait):** Sebelumnya folder `static/events` menumpuk hingga **25.931 file**. Polling `/api/stats` setiap 2 detik memanggil `get_gallery_items()` yang memicu 50.000+ syscall `stat()` ke disk per 2 detik, membuat kernel LXC terkunci dalam status `D-state` (uninterruptible I/O wait).
+   - **Overload CPU Software Decoding HD (720p):** Menjalankan 4 kamera di mode `hd` (1280x720) secara bersamaan di CPU LXC tanpa GPU passthrough membebani CPU hingga FPS drop ke 4 FPS dan memicu freeze.
+2. **Mitigasi Permanen yang Telah Diterapkan:**
+   - **Fast Gallery Counter (`get_gallery_count`):** Endpoint `/api/stats` tidak lagi membaca ribuan file dan disk metadata, melainkan menggunakan counter ringan yang di-cache 10 detik.
+   - **Limit Pagination Gallery:** `get_gallery_items(limit=100)` menggunakan `os.scandir` berkecepatan tinggi dan dibatasi maksimal 100 file terbaru agar RAM tidak jebol.
+   - **Defaultkan ke Sub-Stream (`sub` 640x360):** Grid 4 kamera di LXC wajib berjalan pada mode sub-stream agar FPS mulus (20-30 FPS) dan CPU hemat 75%.
+   - **Smart Event Cooldown:** Interval simpan snapshot event diperpanjang ke 35 detik untuk gerakan umum dan 15 detik untuk manusia/kendaraan.
+   - **Auto-Purge & Retention Hard Limit:** Retensi default diatur ke 3 hari, kapasitas disk maksimal 80%, dan jumlah file event dibatasi maksimal 1.000 file (otomatis menghapus file tertua jika melebihi batas).
 
 ---
 
