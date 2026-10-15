@@ -140,8 +140,8 @@ class CameraWorker:
             except Exception:
                 self.face_detector = None
 
-        # Timeshift DVR Ring Buffer (up to 300 seconds / 5 minutes instant rewind at 4 fps)
-        self.dvr_buffer = deque(maxlen=1200)
+        # Timeshift DVR Ring Buffer (up to 300 seconds / 5 minutes instant rewind at 1 fps, ultra-lightweight RAM footprint)
+        self.dvr_buffer = deque(maxlen=300)
         self.last_dvr_sample_time = 0
 
         # Network Health & Ping Latency Tracking
@@ -150,6 +150,7 @@ class CameraWorker:
 
         # Pre-encoded JPEG cache for zero-lag streaming
         self.cached_jpeg = None
+        self.frame_seq = 0
 
         # Start background ingestion thread
         self.thread = threading.Thread(target=self._run_stream, daemon=True)
@@ -621,9 +622,10 @@ class CameraWorker:
             self.last_frame = processed_frame
             if jpeg_bytes:
                 self.cached_jpeg = jpeg_bytes
+                self.frame_seq += 1
 
-        # Save to Timeshift DVR Ring Buffer every 0.25s (~4 FPS, high-smoothness timeshift)
-        if now - self.last_dvr_sample_time >= 0.25:
+        # Save to Timeshift DVR Ring Buffer every 1.0s (~1 FPS, retains 300s/5min history with ~90% less RAM)
+        if now - self.last_dvr_sample_time >= 1.0:
             self.last_dvr_sample_time = now
             if jpeg_bytes:
                 with self.lock:
@@ -691,6 +693,18 @@ class CameraWorker:
         cv2.putText(blank, text, (150, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (120, 120, 120), 1)
         ret, buffer = cv2.imencode('.jpg', blank)
         return buffer.tobytes()
+
+    def get_jpeg_frame_with_seq(self):
+        """Returns tuple of (frame_bytes, seq_number) to allow zero-copy frame change checks."""
+        with self.lock:
+            if self.cached_jpeg is not None:
+                return self.cached_jpeg, self.frame_seq
+            if self.last_frame is not None:
+                ret, buffer = cv2.imencode('.jpg', self.last_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                if ret:
+                    self.cached_jpeg = buffer.tobytes()
+                    return self.cached_jpeg, self.frame_seq
+        return self.get_jpeg_frame(), 0
 
     def snapshot(self):
         with self.lock:

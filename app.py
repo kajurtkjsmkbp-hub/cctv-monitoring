@@ -173,14 +173,24 @@ def gen_frames(cam_id):
     worker = camera_manager.get_worker(cam_id)
     if not worker:
         return
+    last_seq = -1
+    idle_sleeps = 0
     try:
         while True:
-            frame_bytes = worker.get_jpeg_frame()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n'
-                   + frame_bytes + b'\r\n')
-            time.sleep(0.04) # ~25 FPS
+            frame_bytes, seq = worker.get_jpeg_frame_with_seq()
+            # Push frame if newly captured or keep-alive heartbeat every 1s
+            if frame_bytes and (seq != last_seq or idle_sleeps >= 20):
+                last_seq = seq
+                idle_sleeps = 0
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n'
+                       + frame_bytes + b'\r\n')
+            else:
+                idle_sleeps += 1
+            time.sleep(0.05) # ~20 FPS max cadence (ideal for low-latency & low bandwidth)
+    except (GeneratorExit, ConnectionResetError, BrokenPipeError):
+        pass
     except Exception:
         pass
 

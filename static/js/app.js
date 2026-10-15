@@ -328,18 +328,23 @@ function createCameraCard(cam, index) {
                     </span>
                 </div>
                 
-                <!-- Live Microphone Audio Toggle (If Permitted) -->
-                ${canAudio ? `
-                <button onclick="toggleCameraAudioLive('${cam.id}')" id="card-audio-btn-${cam.id}" 
-                        class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition border shrink-0 ${
-                            state.liveAudioCamId === cam.id ? 
-                            'bg-cyan-500/25 text-cyan-300 border-cyan-400/60 shadow-lg shadow-cyan-500/20 animate-pulse' : 
-                            'bg-slate-800/90 text-slate-400 hover:text-cyan-300 border-slate-700/80 hover:bg-slate-700'
-                        }" title="Dengarkan Suara Langsung Mikrofon Kamera">
-                    <i data-lucide="${state.liveAudioCamId === cam.id ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i>
-                    <span id="card-audio-txt-${cam.id}">${state.liveAudioCamId === cam.id ? 'SUARA ON' : 'SUARA'}</span>
-                </button>
-                ` : ''}
+                <!-- Controls: Reload Stream & Live Microphone Audio -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="reloadStream('${cam.id}')" class="p-1 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-slate-800 border border-slate-700/80 transition" title="Muat Ulang Aliran Kamera (Anti-Blank)">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+                    ${canAudio ? `
+                    <button onclick="toggleCameraAudioLive('${cam.id}')" id="card-audio-btn-${cam.id}" 
+                            class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition border shrink-0 ${
+                                state.liveAudioCamId === cam.id ? 
+                                'bg-cyan-500/25 text-cyan-300 border-cyan-400/60 shadow-lg shadow-cyan-500/20 animate-pulse' : 
+                                'bg-slate-800/90 text-slate-400 hover:text-cyan-300 border-slate-700/80 hover:bg-slate-700'
+                            }" title="Dengarkan Suara Langsung Mikrofon Kamera">
+                        <i data-lucide="${state.liveAudioCamId === cam.id ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i>
+                        <span id="card-audio-txt-${cam.id}">${state.liveAudioCamId === cam.id ? 'SUARA ON' : 'SUARA'}</span>
+                    </button>
+                    ` : ''}
+                </div>
             </div>
 
             <!-- Row 2: Alamat IP Kamera (Kiri) & Status Teknis (Ping, FPS, Resolusi) (Kanan) -->
@@ -546,7 +551,7 @@ function selectCameraForSingleView(camId) {
 
 const streamReconnectTimeouts = {};
 
-// Clean Stream Reconnect on Error or Refresh
+// Clean Stream Reconnect on Error or Refresh with socket reset
 function reloadStream(camId) {
     if (streamReconnectTimeouts[camId]) {
         clearTimeout(streamReconnectTimeouts[camId]);
@@ -555,8 +560,21 @@ function reloadStream(camId) {
     const img = document.getElementById(`img-${camId}`);
     if (img) {
         const tokenParam = state.authToken ? `&token=${encodeURIComponent(state.authToken)}` : '';
-        img.src = `/stream/${camId}?t=${Date.now()}${tokenParam}`;
+        // Abort hanging connection immediately
+        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+        img._lastGoodTime = Date.now();
+        setTimeout(() => {
+            img.src = `/stream/${camId}?t=${Date.now()}${tokenParam}`;
+            img._lastGoodTime = Date.now();
+        }, 80);
     }
+}
+
+function reloadAllStreams() {
+    state.cameras.forEach(cam => {
+        reloadStream(cam.id);
+    });
+    showToast('Memuat ulang aliran semua kamera...', 'info');
 }
 
 function handleStreamError(camId) {
@@ -565,12 +583,8 @@ function handleStreamError(camId) {
 
     streamReconnectTimeouts[camId] = setTimeout(() => {
         streamReconnectTimeouts[camId] = null;
-        const img = document.getElementById(`img-${camId}`);
-        if (img) {
-            const tokenParam = state.authToken ? `&token=${encodeURIComponent(state.authToken)}` : '';
-            img.src = `/stream/${camId}?t=${Date.now()}${tokenParam}`;
-        }
-    }, 2500);
+        reloadStream(camId);
+    }, 2000);
 }
 
 // Layout Switcher - Seamless, never wipes HTML or disconnects streams
@@ -689,6 +703,20 @@ async function pollStats() {
                     recBanner.classList.add('hidden');
                     recBanner.classList.remove('flex');
                     if (recBtn) recBtn.className = 'p-1.5 hover:bg-red-500/20 text-slate-300 rounded transition';
+                }
+            }
+
+            // Anti-Blank Watchdog: Auto-heal blank/stalled streams if camera is connected
+            if (cam.connected) {
+                const img = document.getElementById(`img-${cam.id}`);
+                if (img) {
+                    if (img._lastGoodTime === undefined) img._lastGoodTime = Date.now();
+                    if (img.naturalWidth > 0) {
+                        img._lastGoodTime = Date.now();
+                    } else if (Date.now() - img._lastGoodTime > 7000) {
+                        img._lastGoodTime = Date.now();
+                        reloadStream(cam.id);
+                    }
                 }
             }
         });
@@ -3389,6 +3417,15 @@ async function requestWakeLock() {
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
         requestWakeLock();
+        // Check and refresh streams if any were frozen or blank while tab was inactive/backgrounded
+        if (state.cameras && state.cameras.length > 0) {
+            state.cameras.forEach(cam => {
+                const img = document.getElementById(`img-${cam.id}`);
+                if (img && (img.naturalWidth === 0 || !cam.connected)) {
+                    reloadStream(cam.id);
+                }
+            });
+        }
     }
 });
 

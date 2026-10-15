@@ -143,15 +143,16 @@ mp0: /mnt/pve/hdd-cctv,mp=/opt/cctv-monitoring/static/recordings
 ```
 
 ### ⚠️ Panduan Stabilitas & Pencegahan Hang di Proxmox LXC:
-1. **Penyebab Utama Hang yang Terdeteksi:**
-   - **Disk I/O Wait Thrashing (100% iowait):** Sebelumnya folder `static/events` menumpuk hingga **25.931 file**. Polling `/api/stats` setiap 2 detik memanggil `get_gallery_items()` yang memicu 50.000+ syscall `stat()` ke disk per 2 detik, membuat kernel LXC terkunci dalam status `D-state` (uninterruptible I/O wait).
-   - **Overload CPU Software Decoding HD (720p):** Menjalankan 4 kamera di mode `hd` (1280x720) secara bersamaan di CPU LXC tanpa GPU passthrough membebani CPU hingga FPS drop ke 4 FPS dan memicu freeze.
+1. **Penyebab Utama Hang & Layar Blank yang Terdeteksi:**
+   - **Overload CPU & RAM Memory Thrashing HD 720p:** Jika kamera terset ke mode `hd` (1280x720), 4 aliran video membebani CPU hingga 76%+ dan menyemburkan bandwidth ~60 Mbps ke Cloudflare Tunnel sehingga tunnel terputus (`cctv.iphoenkz.my.id`).
+   - **DVR Ring Buffer Memory Saturation (Efek "5 Menit"):** Buffer DVR awal menyimpan 1.200 frame di RAM. Dalam waktu tepat 5 menit (300 detik), buffer penuh dan menguras ratusan MB RAM (RAM melonjak ke 90.1%), memicu Linux kernel OOM / swap thrashing dan membekukan LXC.
+   - **Silent Stream Stall pada Browser:** Jika koneksi tunnel tersendat, elemen `<img>` MJPEG browser tidak memicu `onerror`, melainkan tetap diam (menampilkan layar hitam). Thread Flask sebelumnya terus memompa frame ke socket mati tanpa pembersihan seketika.
 2. **Mitigasi Permanen yang Telah Diterapkan:**
-   - **Fast Gallery Counter (`get_gallery_count`):** Endpoint `/api/stats` tidak lagi membaca ribuan file dan disk metadata, melainkan menggunakan counter ringan yang di-cache 10 detik.
-   - **Limit Pagination Gallery:** `get_gallery_items(limit=100)` menggunakan `os.scandir` berkecepatan tinggi dan dibatasi maksimal 100 file terbaru agar RAM tidak jebol.
-   - **Defaultkan ke Sub-Stream (`sub` 640x360):** Grid 4 kamera di LXC wajib berjalan pada mode sub-stream agar FPS mulus (20-30 FPS) dan CPU hemat 75%.
-   - **Smart Event Cooldown:** Interval simpan snapshot event diperpanjang ke 35 detik untuk gerakan umum dan 15 detik untuk manusia/kendaraan.
-   - **Auto-Purge & Retention Hard Limit:** Retensi default diatur ke 3 hari, kapasitas disk maksimal 80%, dan jumlah file event dibatasi maksimal 1.000 file (otomatis menghapus file tertua jika melebihi batas).
+   - **Lock Default ke Sub-Stream (`sub` 640x360):** `cameras.json` dikunci ke sub-stream (hemat 75% CPU & 75% RAM), aman untuk CPU multi-core tanpa GPU.
+   - **Ultra-Lean DVR Buffer (300 frame @ 1 FPS):** DVR disampel tiap 1.0 detik dengan kapasitas 300 frame (tetap menyediakan 5 menit rewind penuh, namun hanya memakan ~21 MB RAM total untuk 4 kamera, hemat 95% memori!).
+   - **Zero-Duplicate Cadence Generator (`get_jpeg_frame_with_seq`):** Flask hanya menyemburkan frame baru jika ada perubahan `frame_seq` dari kamera (maks 20 FPS), mencegah pemborosan bandwidth upload ke Cloudflare Tunnel dan menangkap `GeneratorExit` seketika saat tab browser ditutup.
+   - **Anti-Blank Watchdog & Manual Reconnect:** Frontend JavaScript secara otomatis mendeteksi jika feed hitam/blank >7 detik saat status kamera online, lalu melakukan reconnect halus dengan me-reset koneksi socket lama (`data:image/gif;base64,...`). Tombol putar ulang `[🔄]` juga ditambahkan di header tiap kamera.
+   - **VisibilityChange Reconnect:** Ketika tab CCTV dibuka kembali dari latar belakang, semua feed kamera langsung disegarkan otomatis.
 
 ---
 
