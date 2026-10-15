@@ -392,3 +392,86 @@ body {
   will-change: transform;
   transform-origin: center center;
 }
+
+/* ==========================================
+   IMMERSIVE STANDBY AUTO-HIDE (EXPANDED SCREEN)
+   ========================================== */
+header.sticky,
+footer,
+.cam-card-header,
+.cam-card-dvr-panel {
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cam-card-header {
+  max-height: 140px;
+  overflow: hidden;
+}
+
+.cam-card-dvr-panel {
+  max-height: 100px;
+  overflow: hidden;
+}
+
+main.main-cctv-container {
+  transition: max-width 0.4s ease, padding 0.4s ease;
+}
+
+/* Standby Idle State Triggered After Inactivity */
+body.standby-idle {
+  cursor: none !important;
+}
+
+body.standby-idle * {
+  cursor: none !important;
+}
+
+body.standby-idle header.sticky {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.standby-idle .mobile-telemetry-strip {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.standby-idle footer {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.standby-idle main.main-cctv-container {
+  max-width: 100% !important;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+body.standby-idle .cam-card-header {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+  pointer-events: none !important;
+}
+
+body.standby-idle .cam-card-dvr-panel {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-top-width: 0 !important;
+  pointer-events: none !important;
+}
+
+body.standby-idle .cam-card-hover-toolbar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+

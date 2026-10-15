@@ -27,7 +27,7 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Custom Style -->
-    <link rel="stylesheet" href="/static/css/style.css?v=4.3">
+    <link rel="stylesheet" href="/static/css/style.css?v=4.4">
 </head>
 <body class="cyber-bg min-h-screen flex flex-col text-slate-100 select-none">
 
@@ -172,6 +172,12 @@
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
 
+                <!-- Auto-Hide Standby UI Toggle Button -->
+                <button onclick="toggleAutoHideStandby()" id="btn-auto-hide" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Auto-Hide UI: Otomatis sembunyikan bar & tombol saat layar diam 3 detik agar video maksimal">
+                    <i data-lucide="eye-off" class="w-4 h-4 text-emerald-400" id="auto-hide-icon"></i>
+                    <span class="hidden lg:inline font-mono" id="auto-hide-text"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Auto-Hide ON</span>
+                </button>
+
                 <!-- Fullscreen Matrix -->
                 <button onclick="toggleFullscreen()" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" title="Layar Penuh Matrix">
                     <i data-lucide="expand" class="w-4 h-4"></i>
@@ -199,7 +205,7 @@
     </header>
 
     <!-- Mobile-Only Compact Telemetry Strip (visible only on small screens) -->
-    <div class="md:hidden bg-slate-950/95 border-b border-slate-800/60 px-3 py-1.5 flex items-center justify-between">
+    <div class="md:hidden mobile-telemetry-strip bg-slate-950/95 border-b border-slate-800/60 px-3 py-1.5 flex items-center justify-between transition-all duration-300">
         <div class="flex items-center gap-2">
             <span id="mobile-badge-online" class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                 3/4 ONLINE
@@ -214,7 +220,7 @@
     </div>
 
     <!-- Main Live Surveillance Matrix Viewport -->
-    <main class="flex-1 p-4 max-w-7xl mx-auto w-full">
+    <main class="flex-1 p-4 max-w-7xl mx-auto w-full main-cctv-container">
         <!-- Master Multi-Camera Synchronized Playback Bar (Feature D) -->
         <div id="master-sync-bar" class="hidden mb-4 p-3.5 rounded-2xl glass-panel border border-cyan-500/40 shadow-2xl transition-all duration-300">
             <div class="flex flex-col gap-2.5">
@@ -1321,6 +1327,6 @@
     </div>
 
     <!-- Application JS -->
-    <script src="/static/js/app.js?v=4.5"></script>
+    <script src="/static/js/app.js?v=4.6"></script>
 </body>
 </html>

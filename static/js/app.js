@@ -4290,7 +4290,102 @@ window.addEventListener('mouseup', () => {
 });
 
 // ==========================================
-// 21. INITIALIZE ON DOM READY
+// 21. IMMERSIVE STANDBY AUTO-HIDE MANAGER (EXPANDED SCREEN)
+// ==========================================
+let autoHideStandbyEnabled = true;
+let standbyTimer = null;
+const STANDBY_IDLE_DELAY = 3000; // 3 seconds of inactivity
+
+function isAnyModalOpen() {
+    return document.querySelector('#settings-modal:not(.hidden), #login-modal:not(.hidden), #users-modal:not(.hidden), #ptz-modal:not(.hidden), #scan-modal:not(.hidden), #gallery-modal:not(.hidden), #add-camera-modal:not(.hidden), #faces-modal:not(.hidden), #mask-modal:not(.hidden), #confirm-modal:not(.hidden), #cinema-modal:not(.hidden)') !== null;
+}
+
+function wakeFromStandby() {
+    if (document.body.classList.contains('standby-idle')) {
+        document.body.classList.remove('standby-idle');
+    }
+    resetStandbyTimer();
+}
+
+function resetStandbyTimer() {
+    if (standbyTimer) {
+        clearTimeout(standbyTimer);
+        standbyTimer = null;
+    }
+
+    if (!autoHideStandbyEnabled) return;
+
+    // Do not trigger standby if any modal is currently visible or user is editing text
+    if (isAnyModalOpen()) return;
+    if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+    standbyTimer = setTimeout(() => {
+        if (!autoHideStandbyEnabled) return;
+        if (isAnyModalOpen()) return;
+        if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+        document.body.classList.add('standby-idle');
+    }, STANDBY_IDLE_DELAY);
+}
+
+function toggleAutoHideStandby() {
+    autoHideStandbyEnabled = !autoHideStandbyEnabled;
+    try {
+        localStorage.setItem('cctv_auto_hide_enabled', autoHideStandbyEnabled ? 'true' : 'false');
+    } catch (e) {}
+
+    updateAutoHideButtonUI();
+
+    if (autoHideStandbyEnabled) {
+        showToast('Auto-Hide Layar Aktif (UI otomatis sembunyi saat diam 3 detik)', 'info');
+        resetStandbyTimer();
+    } else {
+        document.body.classList.remove('standby-idle');
+        if (standbyTimer) clearTimeout(standbyTimer);
+        showToast('Auto-Hide Layar Dinonaktifkan (UI selalu terlihat)', 'info');
+    }
+}
+
+function updateAutoHideButtonUI() {
+    const btn = document.getElementById('btn-auto-hide');
+    const icon = document.getElementById('auto-hide-icon');
+    const text = document.getElementById('auto-hide-text');
+    if (!btn) return;
+
+    if (autoHideStandbyEnabled) {
+        btn.className = 'px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm';
+        btn.title = 'Auto-Hide UI: AKTIF (Bar & judul sembunyi saat standby agar video maksimal)';
+        if (text) text.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Auto-Hide ON';
+        if (icon) icon.setAttribute('data-lucide', 'eye-off');
+    } else {
+        btn.className = 'px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition';
+        btn.title = 'Auto-Hide UI: NONAKTIF (Klik untuk mengaktifkan sembunyi otomatis)';
+        if (text) text.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Auto-Hide OFF';
+        if (icon) icon.setAttribute('data-lucide', 'eye');
+    }
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+function initAutoHideStandby() {
+    try {
+        const saved = localStorage.getItem('cctv_auto_hide_enabled');
+        if (saved !== null) {
+            autoHideStandbyEnabled = (saved === 'true');
+        }
+    } catch (e) {}
+
+    updateAutoHideButtonUI();
+
+    // Attach global user activity listeners
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'touchmove', 'wheel', 'pointermove'].forEach(evt => {
+        window.addEventListener(evt, wakeFromStandby, { passive: true });
+    });
+
+    resetStandbyTimer();
+}
+
+// ==========================================
+// 22. INITIALIZE ON DOM READY
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Restore layout and setup wakelock & clock
@@ -4299,7 +4394,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateClock();
     state.clockInterval = setInterval(updateClock, 1000);
 
-    // 2. Check for token in URL query parameter (?token=xyz)
+    // 2. Initialize Immersive Standby Auto-Hide
+    initAutoHideStandby();
+
+    // 3. Check for token in URL query parameter (?token=xyz)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenInUrl = urlParams.get('token');
     if (tokenInUrl) {
@@ -4309,7 +4407,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {}
     }
 
-    // 3. Verify authentication status
+    // 4. Verify authentication status
     const isAuth = await checkAuthStatus();
     if (!isAuth) {
         showLoginModal();
