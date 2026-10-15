@@ -8,7 +8,7 @@
 ## 📌 1. Identitas & Repositori Proyek
 
 * **Nama Sistem:** Khanza.NET Vision • ONVIF CCTV Command Station
-* **Versi:** v2.5 PRO
+* **Versi:** v2.6 PRO (High Stability & Low Disk I/O Release)
 * **Tipe Sistem:** Video Management System (VMS) berbasis Web, Single Page Application (SPA), ultra low-latency RTSP proxying, AI Motion & Biometric Recognition, Timeshift DVR, dan PTZ Command.
 * **GitHub Repository:** [https://github.com/kajurtkjsmkbp-hub/cctv-monitoring.git](https://github.com/kajurtkjsmkbp-hub/cctv-monitoring.git)
 * **Branch Utama:** `main`
@@ -137,6 +137,11 @@ ip route add 192.168.50.0/24 via 192.168.1.64
 ```
 
 ### Mount Harddisk Eksternal Proxmox ke Folder Rekaman:
+Di host Proxmox VE (file `/etc/pve/lxc/<ID_CONTAINER>.conf`):
+```text
+mp0: /mnt/pve/hdd-cctv,mp=/opt/cctv-monitoring/static/recordings
+```
+
 ### ⚠️ Panduan Stabilitas & Pencegahan Hang di Proxmox LXC:
 1. **Penyebab Utama Hang yang Terdeteksi:**
    - **Disk I/O Wait Thrashing (100% iowait):** Sebelumnya folder `static/events` menumpuk hingga **25.931 file**. Polling `/api/stats` setiap 2 detik memanggil `get_gallery_items()` yang memicu 50.000+ syscall `stat()` ke disk per 2 detik, membuat kernel LXC terkunci dalam status `D-state` (uninterruptible I/O wait).
@@ -157,6 +162,10 @@ ip route add 192.168.50.0/24 via 192.168.1.64
    - Tidak boleh ada teks penting yang terpotong (`...`), terutama nomor IP, ping, nama kamera, atau indikator gerakan.
    - Tombol audio berdiri sendiri di header masing-masing kamera.
 3. **Penyimpanan Rekaman:** Folder rekaman video (`static/recordings`), foto kejadian (`static/events`), dan tangkapan snapshot (`static/snapshots`) diabaikan oleh `.gitignore` demi menjaga privasi dan kebersihan repositori Git.
+4. **Pembersihan Suara Alarm Mengganggu & Penyederhanaan Tampilan:**
+   - **Penghapusan Suara Alarm:** Toggle suara alarm dan synthesizer oscillator motion beep dinonaktifkan & dihapus karena sangat mengganggu ketika ada deteksi gerakan berulang. Tombol audio mikrofon RTSP live per-kamera (`SUARA`) tetap dipertahankan utuh.
+   - **Pembersihan Teks Waktu & FPS Berlebihan:** Overlay teks waktu dan FPS yang redundant dihapus demi estetika tampilan video yang bersih dan lapang.
+   - **Penyederhanaan Login Tamu:** Tombol scan kamera di halaman login tamu dihilangkan demi keamanan dan privasi.
 5. **Interactive Real-Time Digital Zoom & Pan (GPU-Accelerated):**
    - **Scroll Mouse Zoom:** Scroll roda mouse ke atas untuk Zoom In (hingga 8.0x) dan ke bawah untuk Zoom Out kembali ke 1.0x secara real-time.
    - **Smart Focal Point:** Pembesaran otomatis mengarah ke posisi kursor mouse berada di layar (bukan hanya membesar di tengah).
@@ -171,10 +180,6 @@ ip route add 192.168.50.0/24 via 192.168.1.64
    - **Kursor Hilang:** Kursor mouse otomatis disembunyikan (`cursor: none`) saat standby agar tampilan layar layaknya monitor CCTV command center profesional.
    - **Bangun Seketika:** Gerakan mouse sekecil apa pun (`mousemove`), klik, atau sentuhan layar langsung memunculkan kembali semua kontrol dan bar.
    - **Saklar Pengendali:** Tombol `[ 👁️ Auto-Hide ON/OFF ]` di bar atas untuk mengaktifkan/menonaktifkan mode ini sesuai kebutuhan.
-7. **Pembersihan Suara Alarm Mengganggu & Penyederhanaan Tampilan:**
-   - **Penghapusan Suara Alarm:** Toggle suara alarm dan synthesizer oscillator motion beep dinonaktifkan & dihapus karena sangat mengganggu ketika ada deteksi gerakan berulang. Tombol audio mikrofon RTSP live per-kamera (`SUARA`) tetap dipertahankan utuh.
-   - **Pembersihan Teks Waktu & FPS Berlebihan:** Overlay teks waktu dan FPS yang redundant dihapus demi estetika tampilan video yang bersih dan lapang.
-   - **Penyederhanaan Login Tamu:** Tombol scan kamera di halaman login tamu dihilangkan demi keamanan dan privasi.
 
 ---
 *Dokumen ini diperbarui secara berkala dan disinkronkan langsung ke GitHub Repository.*
