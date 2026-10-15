@@ -9,7 +9,7 @@ const state = {
     selectedCameraId: null,
     ptzActiveCamId: null,
     ptzSpeed: 0.5,
-    soundEnabled: true,
+    soundEnabled: false,
     scanResults: [],
     isScanning: false,
     statsInterval: null,
@@ -88,40 +88,9 @@ window.fetch = function(url, options = {}) {
     });
 };
 
-// Web Audio API Beep Synthesizer for Alerts
+// Web Audio API Beep Synthesizer for Alerts (Disabled permanently per user request)
 function playAlertSound(type = 'motion') {
-    if (!state.soundEnabled) return;
-    try {
-        if (!state.audioCtx) {
-            state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (state.audioCtx.state === 'suspended') {
-            state.audioCtx.resume();
-        }
-        const osc = state.audioCtx.createOscillator();
-        const gain = state.audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(state.audioCtx.destination);
-
-        if (type === 'motion') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, state.audioCtx.currentTime); // A5
-            osc.frequency.exponentialRampToValueAtTime(1320, state.audioCtx.currentTime + 0.15); // E6
-            gain.gain.setValueAtTime(0.12, state.audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.25);
-            osc.start();
-            osc.stop(state.audioCtx.currentTime + 0.25);
-        } else if (type === 'snap') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1200, state.audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.1, state.audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.08);
-            osc.start();
-            osc.stop(state.audioCtx.currentTime + 0.08);
-        }
-    } catch (e) {
-        console.warn('Audio alert error:', e);
-    }
+    return;
 }
 
 // Format Date / Time
@@ -693,10 +662,6 @@ async function pollStats() {
                 }
             }
         });
-
-        if (motionDetectedNow) {
-            playAlertSound('motion');
-        }
 
         updateHeaderBadges();
         checkArmingStatus();

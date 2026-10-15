@@ -158,12 +158,17 @@ mp0: /mnt/pve/hdd-cctv,mp=/opt/cctv-monitoring/static/recordings
    - **Double-Click & Badge Reset:** Klik ganda pada video atau klik badge neon perbesaran (misal `🔍 2.5x [RESET]`) langsung mengembalikan tampilan ke 1.0x normal.
    - **Mobile / Touch Gestures:** Mendukung pinch-to-zoom dengan 2 jari dan drag pan dengan 1 jari di tablet/smartphone.
    - **100% Realtime Video:** Menggunakan akselerasi GPU (CSS3 3D transform `translate3d`, `scale`), aliran video MJPEG/RTSP tidak pernah terhenti atau reload.
-6. **Immersive Standby Auto-Hide Mode (Layar Penuh Maksimal):**
-   - **Standby Auto-Hide (3 Detik):** Jika mouse diam selama 3 detik, bar atas (`header`), strip mobile, judul kartu kamera (Nama, IP, Ping, FPS), dan bilah DVR otomatis bersembunyi halus (*fade out* & collapse).
+6. **Immersive Standby Auto-Hide Mode (Fit-to-Monitor 100vh Sempurna):**
+   - **Standby Auto-Hide (3 Detik):** Jika mouse diam selama 3 detik, bar atas (`header`), strip mobile, judul kartu kamera, dan bilah DVR otomatis bersembunyi halus (*fade out* & collapse).
    - **Layar Melebar Penuh (100% Width & Height):** Grid video kamera melebar memenuhi seluruh resolusi monitor tanpa batas bingkai atau bar pemotong.
-   - **Kursor Hilang:** Kursor mouse otomatis disembunyikan saat standby agar tampilan layar layaknya monitor CCTV profesional.
+   - **Fit-to-Monitor (Anti-Kecrop / Anti-Terpotong):** Saat standby, `aspect-ratio: 16/9` yang kaku dinonaktifkan (`aspect-ratio: auto !important`, `min-height: 0 !important`, `object-fit: contain`) dan layout baris dikunci dalam `grid-template-rows: repeat(2, minmax(0, 1fr))` sehingga kedua baris kamera (misal 2x2) pas sempurna 100% dalam tinggi monitor tanpa ada kamera bawah yang terdorong keluar layar atau butuh scrolling.
+   - **Kursor Hilang:** Kursor mouse otomatis disembunyikan (`cursor: none`) saat standby agar tampilan layar layaknya monitor CCTV command center profesional.
    - **Bangun Seketika:** Gerakan mouse sekecil apa pun (`mousemove`), klik, atau sentuhan layar langsung memunculkan kembali semua kontrol dan bar.
    - **Saklar Pengendali:** Tombol `[ 👁️ Auto-Hide ON/OFF ]` di bar atas untuk mengaktifkan/menonaktifkan mode ini sesuai kebutuhan.
+7. **Pembersihan Suara Alarm Mengganggu & Penyederhanaan Tampilan:**
+   - **Penghapusan Suara Alarm:** Toggle suara alarm dan synthesizer oscillator motion beep dinonaktifkan & dihapus karena sangat mengganggu ketika ada deteksi gerakan berulang. Tombol audio mikrofon RTSP live per-kamera (`SUARA`) tetap dipertahankan utuh.
+   - **Pembersihan Teks Waktu & FPS Berlebihan:** Overlay teks waktu dan FPS yang redundant dihapus demi estetika tampilan video yang bersih dan lapang.
+   - **Penyederhanaan Login Tamu:** Tombol scan kamera di halaman login tamu dihilangkan demi keamanan dan privasi.
 
 ---
 *Dokumen ini diperbarui secara berkala dan disinkronkan langsung ke GitHub Repository.*
